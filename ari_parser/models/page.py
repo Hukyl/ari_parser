@@ -7,7 +7,6 @@ from selenium.webdriver.support.select import Select
 
 from utils.url import Url
 from settings import locators
-from .driver import BaseDriver
 
 
 class BasePage(object):
@@ -18,7 +17,7 @@ class BasePage(object):
     URL = Url("https://ari.sef.pt/")
     LOCATORS = object
 
-    def __init__(self, driver: BaseDriver):
+    def __init__(self, driver):
         self.driver = driver
 
     def __getattr__(self, attr):
@@ -67,6 +66,10 @@ class HomePage(BasePage):
     @property
     def status(self):
         return self.status_span.text
+
+    @property
+    def status_screenshot(self):
+        return self.status_outer_table.screenshot_as_base64
 
 
 class LoginPage(BasePage):

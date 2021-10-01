@@ -9,3 +9,7 @@ class LoginPageLocators:
 
 class HomePageLocators:
     STATUS_SPAN = (By.CSS_SELECTOR, 'span#Conteudo_lblSituacao')
+    STATUS_OUTER_TABLE = (
+        By.CSS_SELECTOR, 
+        '#Conteudo_UpdatePanel1 > div > div.divConteudo > table'
+    )

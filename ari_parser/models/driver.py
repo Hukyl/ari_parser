@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from functools import wraps
 import os
 import sys
 from typing import Optional, Union
@@ -7,6 +8,20 @@ from selenium import webdriver
 
 import settings
 from utils.url import Url
+from .user import User
+from .page import LoginPage
+from .logger import Logger
+
+
+def preserve_start_url(func):
+    @wraps(func)
+    def inner(*args, **kwargs):
+        self = args[0]
+        start_url = self.url
+        result = func(*args, **kwargs)
+        self.get(start_url)
+        return result
+    return inner
 
 
 class BaseDriver(ABC):
@@ -20,12 +35,10 @@ class BaseDriver(ABC):
         pass
 
 
-
-
-class WebDriver(webdriver.Chrome, BaseDriver):
+class Driver(webdriver.Chrome, BaseDriver):
     def __init__(
-            self, *args, 
-            headless:Optional[bool]=settings.ChromeData.HEADLESS, **kwargs
+            self, user: User,
+            *, headless:Optional[bool]=settings.ChromeData.HEADLESS
             ):
         """
         Create a Chrome webdriver
@@ -35,8 +48,6 @@ class WebDriver(webdriver.Chrome, BaseDriver):
         :return:
             driver:selenium.webdriver.Chrome
         """
-        kwargs.pop('options', None)
-        kwargs.pop('executable_path', None)
         chrome_options = webdriver.ChromeOptions()
         chrome_options.add_experimental_option(
             "excludeSwitches", ["enable-automation"]
@@ -56,19 +67,39 @@ class WebDriver(webdriver.Chrome, BaseDriver):
             if sys.platform == 'linux':
                 chrome_options.add_argument("--no-sandbox")
                 chrome_options.add_argument('--disable-dev-shm-usage')
+        self.user = user
         super().__init__(
-            *args,
             executable_path=settings.ChromeData.PATH, 
             options=chrome_options,
             service_log_path=service_log_path,
-            **kwargs
         )
+
+    @property
+    def is_redirected_to_login(self):
+        return self.url == LoginPage.URL
+
+    @preserve_start_url
+    def log_in(self):
+        page = LoginPage(self)
+        self.get(page.URL)
+        page.email = self.user.email
+        page.password = self.user.password
+        page.submit()
+        return not self.is_redirected_to_login
 
     @property
     def url(self):
         return Url(self.current_url)
 
-    def get(self, url:Union[Url, str]):
+    def safe_get(self, url: Union[Url, str])):
+        self.get(url)
+        if self.is_redirected_to_login:
+            Logger().log(f'{self.user.email}: relogging in')
+            self.log_in()
+        self.get(url)
+        return
+
+    def get(self, url: Union[Url, str]):
         if isinstance(url, Url):
             url = url.url
         return super().get(url)
