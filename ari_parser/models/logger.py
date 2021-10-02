@@ -2,16 +2,17 @@ import os
 from datetime import datetime as dt
 
 from utils import Singleton
+from settings import LOGS_PATH
 
 
 
 class Logger(metaclass=Singleton):
     MAX_SIZE = 1000 * 1024  # 1 MB
 
-    def __init__(self):
+    def __init__(self, dirname: str):
         self.log_count = 0
         self.base_path = os.path.join(
-            'logs', dt.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
+            dirname, dt.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
         )
         os.makedirs(self.base_path, exist_ok=False)
         self.logfile = self.create_logfile()
@@ -89,3 +90,8 @@ class Logger(metaclass=Singleton):
 
     def __del__(self):
         self.logfile.close()
+
+
+class DefaultLogger(Logger):
+    def __init__(self):
+        super().__init__(LOGS_PATH)

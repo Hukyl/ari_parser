@@ -1,17 +1,17 @@
-from random import randint
+from random import choice
 import subprocess
 from time import sleep
 import threading
 
-from models.driver import Driver, save_snapshot
+from models.driver import Driver
 from models.page import HomePage
 from models.user import User
-from models.logger import Logger
+from models.logger import DefaultLogger
 import bot
 import settings
 
 
-logger = Logger()
+logger = DefaultLogger()
 
 
 def create_user(user_data: dict[str, str]):
@@ -45,8 +45,8 @@ def thread_checker(user: dict[str, str]):
             user.updates.update(
                 'status', page.status, image=page.status_screenshot
             )
-            save_snapshot(driver)
-        sleep(randint(2, 4) * 60)
+            driver.save_snapshot(settings.SNAPSHOTS_PATH)
+        sleep(choice(settings.REQUEST_TIMEOUT))
 
 
 if __name__ == '__main__':

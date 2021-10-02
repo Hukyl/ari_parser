@@ -11,7 +11,7 @@ import settings
 from utils.url import Url
 from .user import User
 from .page import LoginPage
-from .logger import Logger
+from .logger import DefaultLogger
 
 
 class BaseDriver(ABC):
@@ -91,35 +91,36 @@ class Driver(webdriver.Chrome, BaseDriver):
 
     def safe_get(self, url: Union[Url, str]):
         self.get(url)
-        if self.is_redirected_to_login:
-            logger = Logger()
+        if self.url != url:
+            logger = DefaultLogger()
             logger.log(f'{self.user.email}: relogging in')
             self.user.session = None
             self.delete_cookie(settings.SESSION_COOKIE_NAME)
             is_successful = self.log_in()
             if not is_successful:
                 logger.log(f'{self.user.email}: unable to log in')
-        return self.get(url)
+            self.get(url)
+        return True
 
     def get(self, url: Union[Url, str]):
         sleep(1)
+        DefaultLogger().log(f"{self.user.email}: get `{url.url}`")
         if isinstance(url, Url):
             url = url.url
         return super().get(url)
+
+    def save_snapshot(self, dirname: str):
+        os.makedirs(dirname, exist_ok=True)
+        now = datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
+        with open(
+            os.path.join(
+                dirname, 
+                f"{now}__{self.user.email}__{self.url.rsplit()[1]}.html"
+            ), 'w', encoding='utf-8') as file:
+            file.write(self.page_source)
 
     def __del__(self):
         try:
             self.quit()
         except Exception:
             pass
-
-
-def save_snapshot(driver: Driver):
-    os.makedirs('snapshots', exist_ok=True)
-    now = datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
-    with open(
-        os.path.join(
-            'snapshots', 
-            f"{now}__{driver.user.email}__{driver.url.rsplit()[1]}.html"
-        ), 'w', encoding='utf-8') as file:
-        file.write(driver.page_source)
