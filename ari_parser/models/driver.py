@@ -1,4 +1,6 @@
+from datetime import datetime
 from abc import ABC, abstractmethod
+from time import sleep
 from functools import wraps
 import os
 import sys
@@ -29,8 +31,8 @@ class BaseDriver(ABC):
     def get(self, url: Url):
         pass
 
-    @abstractmethod
     @property
+    @abstractmethod
     def url(self):
         pass
 
@@ -64,6 +66,9 @@ class Driver(webdriver.Chrome, BaseDriver):
         if headless:
             chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--headless")
+            chrome_options.add_experimental_option(
+                "excludeSwitches", ["enable-logging"]
+            )
             if sys.platform == 'linux':
                 chrome_options.add_argument("--no-sandbox")
                 chrome_options.add_argument('--disable-dev-shm-usage')
@@ -85,21 +90,28 @@ class Driver(webdriver.Chrome, BaseDriver):
         page.email = self.user.email
         page.password = self.user.password
         page.submit()
-        return not self.is_redirected_to_login
+        if (is_successful := not self.is_redirected_to_login):
+            self.user.session = self.get_cookie(
+                settings.SESSION_COOKIE_NAME
+            )['value']
+        return is_successful
 
     @property
     def url(self):
         return Url(self.current_url)
 
-    def safe_get(self, url: Union[Url, str])):
+    def safe_get(self, url: Union[Url, str]):
         self.get(url)
         if self.is_redirected_to_login:
-            Logger().log(f'{self.user.email}: relogging in')
-            self.log_in()
-        self.get(url)
-        return
+            logger = Logger()
+            logger.log(f'{self.user.email}: relogging in')
+            is_successful = self.log_in()
+            if not is_successful:
+                logger.log(f'{self.user.email}: unable to log in')
+        return self.get(url)
 
     def get(self, url: Union[Url, str]):
+        sleep(1)
         if isinstance(url, Url):
             url = url.url
         return super().get(url)
@@ -109,3 +121,14 @@ class Driver(webdriver.Chrome, BaseDriver):
             self.quit()
         except Exception:
             pass
+
+
+def save_snapshot(driver: Driver):
+    os.makedirs('snapshots', exist_ok=True)
+    now = datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
+    with open(
+        os.path.join(
+            'snapshots', 
+            f"{now}__{driver.user.email}__{driver.url.rsplit()[1]}.html"
+        ), 'w', encoding='utf-8') as file:
+        file.write(driver.page_source)

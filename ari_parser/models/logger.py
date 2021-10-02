@@ -46,7 +46,7 @@ class Logger(metaclass=Singleton):
     def logfile_size_ok(self) -> bool:
         return os.path.getsize(self.logfile.name) < self.MAX_SIZE
 
-    def log(self, message:str, /, *, kind:str) -> None:
+    def log(self, message:str, /) -> None:
         """
         Log message to console and to file
 
@@ -58,19 +58,15 @@ class Logger(metaclass=Singleton):
             AssertionError: if `kind` not in Logger.LOG_LEVELS
         :return: None
         """
-        assert (
-            info := self.LOG_LEVELS.get(kind.lower())
-        ) is not None, "unsupported message kind"
-        if self.LOG_LEVELS[self.log_level] <= info:
-            message = (
-                f"[{dt.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] "
-                f"[{kind.upper()}] {message}"
-            )
-            self.logfile.write(message + "\n")
-            self.logfile.flush()
-            # print(message)
-            if not self.logfile_size_ok:
-                self.update_logfile()
+        message = (
+            f"[{dt.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] "
+            f"{message}"
+        )
+        self.logfile.write(message + "\n")
+        self.logfile.flush()
+        # print(message)
+        if not self.logfile_size_ok:
+            self.update_logfile()
 
     def catch_error(self, f):
         """

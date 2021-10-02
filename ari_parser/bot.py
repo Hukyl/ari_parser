@@ -6,7 +6,7 @@ from models.user import Updates
 from models.chat import Chat
 
 
-bot = TeleBot(settings.BOT_TOKEN)
+bot = TeleBot(settings.BOT_TOKEN, parse_mode='html')
 
 
 @bot.message_handler(commands=['start'])
@@ -22,11 +22,31 @@ def send_help(msg):
     )
 
 
+@bot.message_handler(commands=['subscribe'])
+def subscribe(msg):
+    chat = Chat(msg.chat.id)
+    if chat.is_subscribed:
+        bot.reply_to(msg, "You are already subscribed!")
+    else:
+        chat.subscribe()
+        bot.reply_to(msg, "You have subscribed!")
+
+
+@bot.message_handler(commands=['unsubscribe'])
+def unsubscribe(msg):
+    chat = Chat(msg.chat.id)
+    if not chat.is_subscribed:
+        bot.reply_to(msg, "You are already unsubscribed!")
+    else:
+        chat.unsubscribe()
+        bot.reply_to(msg, "You have unsubscribed!")
+
+
 def send_updates(updates: Updates, data: dict):
     for chat in Chat.get_subscribed():
         message = (
-            f"**Email**: {updates.owner.email}\n"
-            f"**{data['attr'].title()}**: {getattr(updates, data['attr'])}"
+            f"<b>Email</b>: {updates.owner.email}\n"
+            f"<b>{data['attr'].title()}</b>: {getattr(updates, data['attr'])}"
         )
         if data.get('image'):
             bot.send_photo(chat.id, data['image'], message)

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from urllib.parse import urlparse
 from typing import Union
 
 
@@ -16,6 +17,10 @@ class Url(object):
         return self.url[:self.url.rfind('?')]
 
     @property
+    def domain(self):
+        return urlparse(self.url).netloc
+
+    @property
     def params(self):
         if '?' not in self.url:
             return {}
@@ -26,6 +31,9 @@ class Url(object):
         if not params:
             self.url = self.path
         self.url = f'{self.path}{self.encode_params(params)}'
+
+    def rsplit(self):
+        return self.parent, self.url.rsplit('/', maxsplit=1)[1]
 
     @staticmethod
     def decode_params(params_str:str):

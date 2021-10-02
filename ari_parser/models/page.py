@@ -22,6 +22,7 @@ class BasePage(object):
 
     def __getattr__(self, attr):
         locator = getattr(self.LOCATORS, attr.upper())
+        sleep(1)
         webelement = self.get_webelement(locator)
         webelement.found_by = locator
         return webelement
@@ -32,15 +33,15 @@ class BasePage(object):
         )
 
     def enter_input(self, webelement, value:str) -> True:
-        webelement.click()
-        webelement.send_keys(Keys.HOME)
-        webelement.send_keys(Keys.SHIFT, Keys.END)
-        webelement.send_keys(Keys.BACKSPACE)
-        webelement = (
-            self.get_webelement(webelement.found_by) 
-            if hasattr(webelement, 'found_by') else webelement
-        )
-        for symbol in value:
+        # webelement.click()
+        # webelement.send_keys(Keys.HOME)
+        # webelement.send_keys(Keys.SHIFT, Keys.END)
+        # webelement.send_keys(Keys.BACKSPACE)
+        # webelement = (
+        #     self.get_webelement(webelement.found_by) 
+        #     if hasattr(webelement, 'found_by') else webelement
+        # )
+        for symbol in value.strip():
             sleep(0.1)
             webelement.send_keys(symbol)
         return True
@@ -65,11 +66,11 @@ class HomePage(BasePage):
 
     @property
     def status(self):
-        return self.status_span.text
+        return self.status_span.text.strip()
 
     @property
     def status_screenshot(self):
-        return self.status_outer_table.screenshot_as_base64
+        return self.status_outer_table.screenshot_as_png
 
 
 class LoginPage(BasePage):

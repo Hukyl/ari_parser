@@ -39,7 +39,7 @@ class ChatDatabase(AbstractDatabase):
         self.execute(
             '''CREATE TABLE IF NOT EXISTS chats( 
                 id INTEGER NOT NULL,
-                is_subscribed BOOLEAN DEFAULT 1
+                is_subscribed BOOLEAN DEFAULT 1,
                 UNIQUE(id) ON CONFLICT REPLACE
             )'''
         )
@@ -143,7 +143,7 @@ class UserDatabase(AbstractDatabase):
         if self.check_user_exists(user_id):
             data = self.execute(
                 "SELECT * FROM updates WHERE id = ?", (user_id, )
-            )
+            )[0]
             data.pop('id')
             return data
         raise exceptions.UserDoesNotExistException

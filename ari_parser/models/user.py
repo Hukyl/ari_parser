@@ -6,8 +6,7 @@ from .db import UserDatabase
 
 class Observable(ABC):
     def __init__(self):
-        self.observers = []
-        self.composite = {'value': self, 'image': None}
+        super().__setattr__('observers', [])
 
     def add_observer(self, obs: Callable):
         self.observers.append(obs)
@@ -27,7 +26,7 @@ class User:
         data = self._db.get_user(email=email)
         for k, v in data.items():
             self.__dict__[k] = v
-        self.updates = Updates(data['id'])
+        self.__dict__['updates'] = Updates(self)
 
     @classmethod
     def create_user(cls, *args, **kwargs):
@@ -47,13 +46,13 @@ class Updates(Observable):
 
     def __init__(self, owner: User):
         super().__init__()
-        self.owner = owner
+        super().__setattr__('owner', owner)
         for k, v in self._db.get_updates(owner.id).items():
-            setattr(self, k, v)
+            super().__setattr__(k, v)
 
     def update(self, attr: str, value: AnyStr, *, image=None):
-        has_changed = attr in self.__dict__ and getattr(self.attr) != value
-        self._db.change_user(self.id, **{attr: value})
+        has_changed = attr in self.__dict__ and getattr(self, attr) != value
+        self._db.change_update(self.owner.id, **{attr: value})
         super().__setattr__(attr, value)
         if has_changed:
             self.notify_observers({'attr': attr, 'image': image})        
