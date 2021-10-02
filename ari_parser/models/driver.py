@@ -104,7 +104,6 @@ class Driver(webdriver.Chrome, BaseDriver):
 
     def get(self, url: Union[Url, str]):
         sleep(1)
-        DefaultLogger().log(f"{self.user.email}: get `{url.url}`")
         if isinstance(url, Url):
             url = url.url
         return super().get(url)
