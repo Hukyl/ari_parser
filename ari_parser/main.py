@@ -22,19 +22,25 @@ def create_user(user_data: dict[str, str]):
     return user
 
 
+@logger.catch_error
 def thread_checker(user: dict[str, str]):
     user = create_user(user)
     driver = Driver(user)
     user.updates.add_observer(bot.send_updates)
     page = HomePage(driver)
     driver.get(page.URL)
+    page.change_language('en')
     if user.session:
         driver.add_cookie({
             'name': settings.SESSION_COOKIE_NAME, 
             'value': user.session, 'domain': page.URL.domain
         })
     while True:
-        driver.safe_get(page.URL)
+        try:
+            driver.safe_get(page.URL)
+        except ValueError as e:
+            logger.log(e.args[0], to_stdout=True)
+            return
         if page.status != user.updates.status:
             user.updates.update(
                 'status', page.status, image=page.status_screenshot

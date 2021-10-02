@@ -1,13 +1,18 @@
 from selenium.webdriver.common.by import By
 
 
-class LoginPageLocators:
+class BasePageLocators:
+    LANGUAGE_SELECT = (By.CSS_SELECTOR, 'select#lstIdioma')
+
+
+class LoginPageLocators(BasePageLocators):
     EMAIL_INPUT = (By.NAME, 'txtUtilizador')
     PASSWORD_INPUT = (By.NAME, 'txtChaveAcesso')
     SUBMIT_BUTTON = (By.NAME, 'btnAutenticar')
+    ERROR_SPAN = (By.CSS_SELECTOR, 'span#Mensagem')
 
 
-class HomePageLocators:
+class HomePageLocators(BasePageLocators):
     STATUS_SPAN = (By.CSS_SELECTOR, 'span#Conteudo_lblSituacao')
     STATUS_OUTER_TABLE = (
         By.CSS_SELECTOR, 

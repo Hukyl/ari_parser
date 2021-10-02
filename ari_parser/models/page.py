@@ -2,7 +2,6 @@ from time import sleep
 
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.select import Select
 
 from utils.url import Url
@@ -15,7 +14,7 @@ class BasePage(object):
     pages
     """
     URL = Url("https://ari.sef.pt/")
-    LOCATORS = object
+    LOCATORS = locators.BasePageLocators
 
     def __init__(self, driver):
         self.driver = driver
@@ -32,15 +31,11 @@ class BasePage(object):
             EC.presence_of_element_located(locator)
         )
 
+    def change_language(self, lang_code: str):
+        Select(self.language_select).select_by_value(lang_code)
+        return True
+
     def enter_input(self, webelement, value:str) -> True:
-        # webelement.click()
-        # webelement.send_keys(Keys.HOME)
-        # webelement.send_keys(Keys.SHIFT, Keys.END)
-        # webelement.send_keys(Keys.BACKSPACE)
-        # webelement = (
-        #     self.get_webelement(webelement.found_by) 
-        #     if hasattr(webelement, 'found_by') else webelement
-        # )
         for symbol in value.strip():
             sleep(0.1)
             webelement.send_keys(symbol)
@@ -92,6 +87,18 @@ class LoginPage(BasePage):
     @password.setter
     def password(self, value: str):
         self.enter_input(self.password_input, value)
+
+    @property
+    def error(self):
+        text = self.error_span.text.strip()
+        return text or None
+
+    @property
+    def is_invalid_credentials(self):
+        return self.error in [
+            'Invalid user or password', 
+            'Utilizador ou palavra chave inválida'
+        ]
 
     def submit(self):
         self.submit_button.click()

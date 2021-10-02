@@ -46,7 +46,7 @@ class Logger(metaclass=Singleton):
     def logfile_size_ok(self) -> bool:
         return os.path.getsize(self.logfile.name) < self.MAX_SIZE
 
-    def log(self, message:str, /) -> None:
+    def log(self, message:str, /, *, to_stdout:bool=False) -> None:
         """
         Log message to console and to file
 
@@ -64,7 +64,8 @@ class Logger(metaclass=Singleton):
         )
         self.logfile.write(message + "\n")
         self.logfile.flush()
-        # print(message)
+        if to_stdout:
+            print(message)
         if not self.logfile_size_ok:
             self.update_logfile()
 
@@ -78,7 +79,9 @@ class Logger(metaclass=Singleton):
                 res = f(*args, **kwargs)
             except Exception as e:
                 self.log(
-                    f"Function {f.__name__} raised {e.__class__.__name__}:{e}"
+                    "Function `{}` raised {}:{}".format(
+                        f.__name__, e.__class__.__name__, e
+                    ), to_stdout=True
                 )
             else:
                 return res

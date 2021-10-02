@@ -1,7 +1,6 @@
 from datetime import datetime
 from abc import ABC, abstractmethod
 from time import sleep
-from functools import wraps
 import os
 import sys
 from typing import Optional, Union
@@ -13,17 +12,6 @@ from utils.url import Url
 from .user import User
 from .page import LoginPage
 from .logger import Logger
-
-
-def preserve_start_url(func):
-    @wraps(func)
-    def inner(*args, **kwargs):
-        self = args[0]
-        start_url = self.url
-        result = func(*args, **kwargs)
-        self.get(start_url)
-        return result
-    return inner
 
 
 class BaseDriver(ABC):
@@ -83,13 +71,14 @@ class Driver(webdriver.Chrome, BaseDriver):
     def is_redirected_to_login(self):
         return self.url == LoginPage.URL
 
-    @preserve_start_url
     def log_in(self):
         page = LoginPage(self)
         self.get(page.URL)
         page.email = self.user.email
         page.password = self.user.password
         page.submit()
+        if page.is_invalid_credentials:
+            raise ValueError(f"{self.user.email}: invalid credentials")
         if (is_successful := not self.is_redirected_to_login):
             self.user.session = self.get_cookie(
                 settings.SESSION_COOKIE_NAME
@@ -105,6 +94,8 @@ class Driver(webdriver.Chrome, BaseDriver):
         if self.is_redirected_to_login:
             logger = Logger()
             logger.log(f'{self.user.email}: relogging in')
+            self.user.session = None
+            self.delete_cookie(settings.SESSION_COOKIE_NAME)
             is_successful = self.log_in()
             if not is_successful:
                 logger.log(f'{self.user.email}: unable to log in')
