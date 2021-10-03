@@ -4,3 +4,11 @@ class UserAlreadyExistsException(Exception):
 
 class UserDoesNotExistException(Exception):
     pass
+
+
+class AuthorizationException(Exception):
+    pass
+
+
+class InvalidCredentialsException(AuthorizationException):
+    pass

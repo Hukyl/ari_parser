@@ -1,4 +1,4 @@
-from random import choice
+from random import choice, sample
 import subprocess
 from time import sleep
 import threading
@@ -7,8 +7,10 @@ from models.driver import Driver
 from models.page import HomePage
 from models.user import User
 from models.logger import DefaultLogger
+from models import exceptions
 import bot
 import settings
+from utils import cycle
 
 
 logger = DefaultLogger()
@@ -22,11 +24,15 @@ def create_user(user_data: dict[str, str]):
     return user
 
 
+@bot.notify_errors
 @logger.catch_error
 def thread_checker(user: dict[str, str]):
     user = create_user(user)
     driver = Driver(user)
     user.updates.add_observer(bot.send_updates)
+    proxies = cycle([''] if not settings.PROXIES else sample(
+        settings.PROXIES, len(settings.PROXIES)
+    ))
     page = HomePage(driver)
     driver.get(page.URL)
     page.change_language('en')
@@ -36,10 +42,12 @@ def thread_checker(user: dict[str, str]):
             'value': user.session, 'domain': page.URL.domain
         })
     while True:
+        driver.set_proxy(next(proxies))
         try:
             driver.safe_get(page.URL)
-        except ValueError as e:
+        except exceptions.AuthorizationException as e:
             logger.log(e.args[0], to_stdout=True)
+            bot.send_error(driver.user.email, e)
             return
         if page.status != user.updates.status:
             user.updates.update(

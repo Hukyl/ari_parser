@@ -1,12 +1,15 @@
-from telebot import TeleBot
+from time import sleep
+import logging
+
+from telebot import TeleBot, logger
 
 import settings
-
 from models.user import Updates
 from models.chat import Chat
 
 
 bot = TeleBot(settings.BOT_TOKEN, parse_mode='html')
+logger.setLevel(logging.FATAL)
 
 
 @bot.message_handler(commands=['start'])
@@ -52,6 +55,31 @@ def send_updates(updates: Updates, data: dict):
             bot.send_photo(chat.id, data['image'], message)
         else:
             bot.send_message(chat.id, message)
+
+
+def send_error(email:str, message: str):
+    for chat in Chat.get_subscribed():
+        message = (
+            f'<b>Error</b>\n<b>Email</b>: {email}\n<b>Message</b>: {message}'
+        )
+        bot.send_message(chat.id, message)
+
+
+
+def notify_errors(func):
+    def inner(user: dict[str, str]):
+        func(user)
+        sleep(30 * 60)
+        func(user)
+        for chat in Chat.get_subscribed():
+            bot.send_message(
+                chat.id, 
+                (
+                    f"<b>Error</b>\n<b>Email</b>: {user['email']}\n"
+                    "<b>Reason</b>: crawler error"
+                )
+            )
+    return inner
 
 
 if __name__ == '__main__':

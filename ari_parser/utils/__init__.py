@@ -1,4 +1,11 @@
 import re
+from typing import Iterable
+
+
+def cycle(iterable: Iterable):
+    while True:
+        for x in iterable:
+            yield x
 
 
 def validate_email(s: str) -> bool:

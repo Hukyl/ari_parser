@@ -1,31 +1,22 @@
 from datetime import datetime
-from abc import ABC, abstractmethod
 from time import sleep
 import os
 import sys
 from typing import Optional, Union
 
-from selenium import webdriver
+from seleniumwire import webdriver
 
 import settings
 from utils.url import Url
 from .user import User
 from .page import LoginPage
 from .logger import DefaultLogger
+from .exceptions import InvalidCredentialsException
 
 
-class BaseDriver(ABC):
-    @abstractmethod
-    def get(self, url: Url):
-        pass
+class Driver(webdriver.Chrome):
+    NO_PROXY_IP = 'localhost,127.0.0.1,dev_server:8080'
 
-    @property
-    @abstractmethod
-    def url(self):
-        pass
-
-
-class Driver(webdriver.Chrome, BaseDriver):
     def __init__(
             self, user: User,
             *, headless:Optional[bool]=settings.ChromeData.HEADLESS
@@ -51,6 +42,7 @@ class Driver(webdriver.Chrome, BaseDriver):
             "excludeSwitches", ["enable-logging"]
         )
         service_log_path = os.devnull if sys.platform == 'linux' else 'NUL'
+        seleniumwire_options = {'proxy': {'no_proxy': self.NO_PROXY_IP}}
         if headless:
             chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--headless")
@@ -65,6 +57,7 @@ class Driver(webdriver.Chrome, BaseDriver):
             executable_path=settings.ChromeData.PATH, 
             options=chrome_options,
             service_log_path=service_log_path,
+            seleniumwire_options=seleniumwire_options
         )
 
     @property
@@ -78,7 +71,7 @@ class Driver(webdriver.Chrome, BaseDriver):
         page.password = self.user.password
         page.submit()
         if page.is_invalid_credentials:
-            raise ValueError(f"{self.user.email}: invalid credentials")
+            raise InvalidCredentialsException("invalid credentials")
         if (is_successful := not self.is_redirected_to_login):
             self.user.session = self.get_cookie(
                 settings.SESSION_COOKIE_NAME
@@ -107,6 +100,13 @@ class Driver(webdriver.Chrome, BaseDriver):
         if isinstance(url, Url):
             url = url.url
         return super().get(url)
+
+    def set_proxy(self, proxy:str):
+        if not proxy:
+            self.proxy = {'no_proxy': self.NO_PROXY_IP}
+        else:
+            self.proxy = {'no_proxy': self.NO_PROXY_IP, 'https': proxy}
+        return True
 
     def save_snapshot(self, dirname: str):
         os.makedirs(dirname, exist_ok=True)
