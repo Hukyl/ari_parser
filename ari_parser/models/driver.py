@@ -73,8 +73,11 @@ class Driver(webdriver.Chrome):
         if page.is_invalid_credentials:
             raise InvalidCredentialsException("invalid credentials")
         if (is_successful := not self.is_redirected_to_login):
-            self.user.session = self.get_cookie(
-                settings.SESSION_COOKIE_NAME
+            self.user.auth_token = self.get_cookie(
+                settings.AUTH_TOKEN_COOKIE_NAME
+            )['value']
+            self.user.session_id = self.get_cookie(
+                settings.SESSION_ID_COOKIE_NAME
             )['value']
         return is_successful
 
@@ -87,8 +90,8 @@ class Driver(webdriver.Chrome):
         if self.url != url:
             logger = DefaultLogger()
             logger.log(f'{self.user.email}: relogging in')
-            self.user.session = None
-            self.delete_cookie(settings.SESSION_COOKIE_NAME)
+            self.user.auth_token = None
+            self.delete_cookie(settings.AUTH_TOKEN_COOKIE_NAME)
             is_successful = self.log_in()
             if not is_successful:
                 logger.log(f'{self.user.email}: unable to log in')

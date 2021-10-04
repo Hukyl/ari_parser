@@ -36,10 +36,15 @@ def thread_checker(user: dict[str, str]):
     page = HomePage(driver)
     driver.get(page.URL)
     page.change_language('en')
-    if user.session:
+    if user.auth_token:
         driver.add_cookie({
-            'name': settings.SESSION_COOKIE_NAME, 
-            'value': user.session, 'domain': page.URL.domain
+            'name': settings.AUTH_TOKEN_COOKIE_NAME, 
+            'value': user.auth_token, 'domain': page.URL.domain
+        })
+    if user.session_id:
+        driver.add_cookie({
+            'name': settings.SESSION_ID_COOKIE_NAME, 
+            'value': user.session_id, 'domain': page.URL.domain
         })
     while True:
         driver.set_proxy(next(proxies))

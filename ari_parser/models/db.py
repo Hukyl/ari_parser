@@ -100,7 +100,8 @@ class UserDatabase(AbstractDatabase):
                 id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE,
                 email VARCHAR UNIQUE,
                 password VARCHAR,
-                session VARCHAR DEFAULT NULL
+                auth_token VARCHAR DEFAULT NULL,
+                session_id VARCHAR DEFAULT NULL
             )'''
         )
         self.execute(
@@ -112,12 +113,14 @@ class UserDatabase(AbstractDatabase):
         )
 
     def add_user(
-                self, email: str, password: str, session:str=None
+                self, email: str, password: str, 
+                auth_token:str=None, session_id:str=None
             ) -> Union[bool, int]:
         if not self.check_email_exists(email):
             self.execute(
-                "INSERT INTO users(email, password, session) VALUES (?, ?, ?)",
-                (email, password, session)
+                "INSERT INTO users(email, password, auth_token, session_id) \
+                VALUES (?, ?, ?, ?)",
+                (email, password, auth_token, session_id)
             )
             user_id = self.execute(
                 'SELECT id FROM users WHERE email = ?', (email,)
