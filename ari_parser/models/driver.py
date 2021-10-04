@@ -102,10 +102,16 @@ class Driver(webdriver.Chrome):
         return super().get(url)
 
     def set_proxy(self, proxy:str):
+        proxies = {'no_proxy': self.NO_PROXY_IP}
         if not proxy:
-            self.proxy = {'no_proxy': self.NO_PROXY_IP}
+            pass
+        elif proxy.startswith('http'):
+            proxies['https'] = proxy
+        elif proxy.startswith('socks'):
+            proxies['http'] = proxies['https'] = proxy
         else:
-            self.proxy = {'no_proxy': self.NO_PROXY_IP, 'https': proxy}
+            raise ValueError('unsupported proxy type')
+        self.proxy = proxies
         return True
 
     def save_snapshot(self, dirname: str):
