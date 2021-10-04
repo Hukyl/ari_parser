@@ -3,6 +3,7 @@ from time import sleep
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.select import Select
+from selenium.common import exceptions
 
 from utils.url import Url
 from settings import locators
@@ -90,8 +91,10 @@ class LoginPage(BasePage):
 
     @property
     def error(self):
-        text = self.error_span.text.strip()
-        return text or None
+        try:
+            return self.error_span.text.strip()
+        except exceptions.TimeoutException:
+            return None
 
     @property
     def is_invalid_credentials(self):

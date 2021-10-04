@@ -70,6 +70,6 @@ if __name__ == '__main__':
     print("Shutting down the parser")
     # Kill all instances of driver
     subprocess.call(
-        settings.ChromeData.TASK_KILL_COMMAND, 
+        settings.ChromeData.TASK_KILL_COMMAND.split(), 
         stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
     )

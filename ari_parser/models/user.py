@@ -37,13 +37,10 @@ class Updates(Observable):
 
     def update(self, attr: str, value: AnyStr, *, image=None):
         has_changed = attr in self.__dict__ and getattr(self, attr) != value
-        self._db.change_update(self.owner.id, **{attr: value})
-        super().__setattr__(attr, value)
+        setattr(self, attr, value)
         if has_changed:
             self.notify_observers({'attr': attr, 'image': image})        
 
     def __setattr__(self, attr: str, value: AnyStr):
-        raise TypeError((
-                "'{}' object has no attribute '__setattr__' method. "
-                "Use 'update' instead"
-            ).format(self.__class__.__name__))
+        self._db.change_update(self.owner.id, **{attr: value})
+        super().__setattr__(attr, value)
