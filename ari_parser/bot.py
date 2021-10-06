@@ -46,39 +46,45 @@ def unsubscribe(msg):
 
 
 def send_updates(updates: Updates, data: dict):
+    message = (
+        f"<b>Email</b>: {updates.owner.email}\n"
+        f"<b>{data['attr'].title()}</b>: {getattr(updates, data['attr'])}"
+    )    
     for chat in Chat.get_subscribed():
-        message = (
-            f"<b>Email</b>: {updates.owner.email}\n"
-            f"<b>{data['attr'].title()}</b>: {getattr(updates, data['attr'])}"
-        )
         if data.get('image'):
             bot.send_photo(chat.id, data['image'], message)
         else:
             bot.send_message(chat.id, message)
 
 
-def send_error(email:str, message: str):
+def send_message(email: str, message: str):
+    message = f"<b>Email</b>: {email}\n<b>Message</b>: {message}"
     for chat in Chat.get_subscribed():
-        message = (
-            f'<b>Error</b>\n<b>Email</b>: {email}\n<b>Message</b>: {message}'
-        )
+        bot.send_message(chat.id, message)
+
+
+def send_error(email:str, message: str):
+    message = (
+        f'<b>Error</b>\n<b>Email</b>: {email}\n<b>Message</b>: {message}'
+    )    
+    for chat in Chat.get_subscribed():
         bot.send_message(chat.id, message)
 
 
 
 def notify_errors(func):
     def inner(user: dict[str, str]):
+        message = (
+            f"<b>Error</b>\n<b>Email</b>: {user['email']}\n"
+            "<b>Reason</b>: crawler error"
+        )
         func(user)
+        for chat in Chat.get_subscribed():
+            bot.send_message(chat.id, message)
         sleep(30 * 60)
         func(user)
         for chat in Chat.get_subscribed():
-            bot.send_message(
-                chat.id, 
-                (
-                    f"<b>Error</b>\n<b>Email</b>: {user['email']}\n"
-                    "<b>Reason</b>: crawler error"
-                )
-            )
+            bot.send_message(chat.id, message)
     return inner
 
 

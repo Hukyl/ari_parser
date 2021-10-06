@@ -106,3 +106,41 @@ class LoginPage(BasePage):
     def submit(self):
         self.submit_button.click()
         return True
+
+
+class AppointmentPage(BasePage):
+    URL = BasePage.URL / 'ARIAgenda.aspx'
+    LOCATORS = locators.AppointmentPageLocators
+
+    @property
+    def matter_option(self):
+        try:
+            return Select(self.matter_select).first_selected_option
+        except exceptions.NoSuchElementException:
+            return None
+
+    @property
+    def matter_options(self):
+        return [x.text for x in Select(self.matter_select).options]
+
+    @matter_option.setter
+    def matter_option(self, value: str):
+        Select(self.matter_select).select_by_visible_text(value)
+
+    @property
+    def branch_options(self):
+        return [x.text for x in Select(self.branch_select).options]
+
+    @property
+    def branch_option(self):
+        try:
+            return Select(self.branch_select).first_selected_option
+        except exceptions.NoSuchElementException:
+            return None
+
+    @branch_option.setter
+    def branch_option(self, value: str):
+        Select(self.branch_select).select_by_visible_text(value)
+
+    def refresh(self):
+        self.refresh_button.click()

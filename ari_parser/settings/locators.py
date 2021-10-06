@@ -18,3 +18,12 @@ class HomePageLocators(BasePageLocators):
         By.CSS_SELECTOR, 
         '#Conteudo_UpdatePanel1 > div > div.divConteudo > table'
     )
+    CALENDAR_BUTTON = (
+        By.CSS_SELECTOR, 'input#Conteudo_btnAgendamento'
+    )
+
+
+class AppointmentPageLocators(BasePageLocators):
+    REFRESH_BUTTON = (By.CSS_SELECTOR, "#Conteudo_btnNovo")
+    MATTER_SELECT = (By.CSS_SELECTOR, '#Conteudo_lstAAG')
+    BRANCH_SELECT = (By.CSS_SELECTOR, '#Conteudo_lstUNOR')

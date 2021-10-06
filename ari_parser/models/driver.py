@@ -127,6 +127,14 @@ class Driver(webdriver.Chrome):
             ), 'w', encoding='utf-8') as file:
             file.write(self.page_source)
 
+    def open_new_tab(self):
+        self.execute_script("window.open('', '_blank').focus()")
+        return True
+
+    def switch_to_tab(self, index:int, /):
+        self.switch_to_window(self.window_handles[index])
+        return True
+
     def __del__(self):
         try:
             self.quit()
