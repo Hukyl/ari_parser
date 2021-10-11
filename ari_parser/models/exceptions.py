@@ -1,8 +1,16 @@
-class UserAlreadyExistsException(Exception):
+class DatabaseException(Exception):
+    pass
+    
+
+class AccountAlreadyExistsException(DatabaseException):
     pass
 
 
-class UserDoesNotExistException(Exception):
+class AccountDoesNotExistException(DatabaseException):
+    pass
+
+
+class DependentDoesNotExistException(DatabaseException):
     pass
 
 

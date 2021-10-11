@@ -21,9 +21,20 @@ class HomePageLocators(BasePageLocators):
     CALENDAR_BUTTON = (
         By.CSS_SELECTOR, 'input#Conteudo_btnAgendamento'
     )
+    APPLICANTS_BUTTON = (By.CSS_SELECTOR, '#Conteudo_btnAF')
+
+
+
+class ApplicantsPageLocators(BasePageLocators):
+    TABLE = (By.CSS_SELECTOR, 'table#Conteudo_dg > tbody')
+
 
 
 class AppointmentPageLocators(BasePageLocators):
     REFRESH_BUTTON = (By.CSS_SELECTOR, "#Conteudo_btnNovo")
     MATTER_SELECT = (By.CSS_SELECTOR, '#Conteudo_lstAAG')
     BRANCH_SELECT = (By.CSS_SELECTOR, '#Conteudo_lstUNOR')
+    DATE_SELECT = (By.CSS_SELECTOR, 'select#Conteudo_lstAgendamentoMes')
+    DAY_SELECT = (By.CSS_SELECTOR, 'select#Conteudo_lstAgendamentoDia')
+    TIME_SELECT = (By.CSS_SELECTOR, 'select#Conteudo_lstAgendamentoHora')
+    SUBMIT_BUTTON = (By.CSS_SELECTOR, 'input#Conteudo_btnConfirmar')

@@ -1,4 +1,7 @@
+from abc import ABC, abstractmethod
 from time import sleep
+from datetime import datetime
+from random import choice
 
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -9,7 +12,7 @@ from utils.url import Url
 from settings import locators
 
 
-class BasePage(object):
+class BasePage(ABC):
     """
     Base class to initialize the base page that will be called from all
     pages
@@ -60,6 +63,14 @@ class HomePage(BasePage):
     URL = BasePage.URL / 'ARIApplication.aspx'
     LOCATORS = locators.HomePageLocators
 
+    def click_calendar(self):
+        self.calendar_button.click()
+        return True
+
+    def click_applicants(self):
+        self.applicants_button.click()
+        return True
+
     @property
     def status(self):
         return self.status_span.text.strip()
@@ -108,9 +119,52 @@ class LoginPage(BasePage):
         return True
 
 
-class AppointmentPage(BasePage):
+class ApplicantsPage(BasePage):
+    URL = BasePage.URL / 'ARIRF.aspx'
+    LOCATORS = locators.ApplicantsPageLocators
+
+    def set_applicant(self, name: str):
+        try:
+            return self.table.find_element('xpath', f'//td[.={name}]/../td[0]')
+        except exceptions.TimeoutException:
+            raise ValueError(
+                f'unable to locate element with name "{name}"'
+            ) from None
+
+    def get_applicant_appointment(self):
+        self.applicant_appointment_button.click()
+        return True
+
+
+class AppointmentPage(ABC, BasePage):
     URL = BasePage.URL / 'ARIAgenda.aspx'
     LOCATORS = locators.AppointmentPageLocators
+
+    @abstractmethod
+    def get_schedule_times(self):
+        pass
+
+    def schedule(self, options: list, *args, **kwargs) -> dict:
+        office = choice(options)
+        self.branch_option = office
+        date = min([
+            datetime.strptime('%Y - %B', x) for x in self.dates
+        ])
+        self.date = date.strftime('%Y - %B')
+        day = min([
+            f"0{x.lstrip('0')}" for x in self.days
+        ]).lstrip()
+        date = date.replace(day=int(day))
+        self.day = day
+        self.time = (time := min(
+            self.get_schedule_times(date, *args, **kwargs)
+        ))
+        hour, minute = map(
+            lambda x: int(x.lstrip('0')), time.split(':')
+        )
+        date = date.replace(hour=hour, minute=minute)
+        self.submit()
+        return {'office': office, 'date': date}
 
     @property
     def matter_option(self):
@@ -142,5 +196,83 @@ class AppointmentPage(BasePage):
     def branch_option(self, value: str):
         Select(self.branch_select).select_by_visible_text(value)
 
+    @property
+    def times(self):
+        return [x.text for x in Select(self.time_select).options]
+
+    @property
+    def time(self):
+        try:
+            return Select(self.time_select).first_selected_option
+        except exceptions.NoSuchElementException:
+            return None
+
+    @time.setter
+    def time(self, value: str):
+        Select(self.time_select).select_by_visible_text(value)
+
+    @property
+    def dates(self):
+        return [x.text for x in Select(self.date_select).options]
+
+    @property
+    def date(self):
+        try:
+            return Select(self.date_select).first_selected_option
+        except exceptions.NoSuchElementException:
+            return None
+    
+    @date.setter
+    def date(self, value: str):
+        Select(self.date_select).select_by_visible_text(value)
+
+    @property
+    def days(self):
+        return [x.text for x in Select(self.day_select).options]
+
+    @property
+    def day(self):
+        try:
+            return Select(self.day_select).first_selected_option
+        except exceptions.NoSuchElementException:
+            return None
+    
+    @day.setter
+    def day(self, value: str):
+        Select(self.day_select).select_by_visible_text(value)
+
+    def submit(self):
+        self.submit_button.click()
+
     def refresh(self):
         self.refresh_button.click()
+
+
+class MainAppointmentPage(AppointmentPage):
+    def get_schedule_times(self, *args, **kwargs):
+        return self.times
+
+
+class DependentAppointmentPage(AppointmentPage):
+    def schedule(
+            self, options: list, owner_datetime: datetime, 
+            owner_office: str, min_hour_offset: int = 0
+        ) -> dict:
+        if owner_office not in options:
+            return super().schedule(options, owner_datetime, min_hour_offset)
+        else:
+            data = super().schedule([owner_office])
+        return data
+
+    def get_schedule_times(
+                self, approximate_date: datetime, start_date: datetime, 
+                min_hour_offset: int = 0
+            ):
+        if start_date.date() == approximate_date:
+            start_time = start_date.time()
+            start_time = start_time.replace(
+                hour=start_time.hour + min_hour_offset
+            )
+            return filter(lambda x: x > start_time, self.times)
+        else:
+            return self.times

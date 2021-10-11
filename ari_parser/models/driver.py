@@ -8,7 +8,7 @@ from seleniumwire import webdriver
 
 import settings
 from utils.url import Url
-from .user import User
+from .account import Account
 from .page import LoginPage
 from .logger import DefaultLogger
 from .exceptions import InvalidCredentialsException
@@ -18,7 +18,7 @@ class Driver(webdriver.Chrome):
     NO_PROXY_IP = 'localhost,127.0.0.1,dev_server:8080'
 
     def __init__(
-            self, user: User,
+            self, account: Account,
             *, headless:Optional[bool]=settings.ChromeData.HEADLESS
             ):
         """
@@ -52,7 +52,7 @@ class Driver(webdriver.Chrome):
             if sys.platform == 'linux':
                 chrome_options.add_argument("--no-sandbox")
                 chrome_options.add_argument('--disable-dev-shm-usage')
-        self.user = user
+        self.account = account
         super().__init__(
             executable_path=settings.ChromeData.PATH, 
             options=chrome_options,
@@ -67,16 +67,16 @@ class Driver(webdriver.Chrome):
     def log_in(self):
         page = LoginPage(self)
         self.get(page.URL)
-        page.email = self.user.email
-        page.password = self.user.password
+        page.email = self.account.email
+        page.password = self.account.password
         page.submit()
         if page.is_invalid_credentials:
             raise InvalidCredentialsException("invalid credentials")
         if (is_successful := not self.is_redirected_to_login):
-            self.user.auth_token = self.get_cookie(
+            self.account.auth_token = self.get_cookie(
                 settings.AUTH_TOKEN_COOKIE_NAME
             )['value']
-            self.user.session_id = self.get_cookie(
+            self.account.session_id = self.get_cookie(
                 settings.SESSION_ID_COOKIE_NAME
             )['value']
         return is_successful
@@ -89,12 +89,12 @@ class Driver(webdriver.Chrome):
         self.get(url)
         if self.url != url:
             logger = DefaultLogger()
-            logger.log(f'{self.user.email}: relogging in')
-            self.user.auth_token = None
+            logger.log(f'{self.account.email}: relogging in')
+            self.account.auth_token = None
             self.delete_cookie(settings.AUTH_TOKEN_COOKIE_NAME)
             is_successful = self.log_in()
             if not is_successful:
-                logger.log(f'{self.user.email}: unable to log in')
+                logger.log(f'{self.account.email}: unable to log in')
             self.get(url)
         return True
 
@@ -123,12 +123,16 @@ class Driver(webdriver.Chrome):
         with open(
             os.path.join(
                 dirname, 
-                f"{now}__{self.user.email}__{self.url.rsplit()[1]}.html"
+                f"{now}__{self.account.email}__{self.url.rsplit()[1]}.html"
             ), 'w', encoding='utf-8') as file:
             file.write(self.page_source)
 
     def open_new_tab(self):
         self.execute_script("window.open('', '_blank').focus()")
+        return True
+
+    def close_tab(self):
+        self.execute_script('window.close();')
         return True
 
     def switch_to_tab(self, index:int, /):
