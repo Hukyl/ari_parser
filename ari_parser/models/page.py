@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from time import sleep
-from datetime import datetime
-from random import choice
+from datetime import datetime, timedelta
 
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -35,7 +34,12 @@ class BasePage(ABC):
             EC.presence_of_element_located(locator)
         )
 
-    def change_language(self, lang_code: str):
+    @property
+    def language(self):
+        return Select(self.language_select).first_selected_option
+
+    @language.setter
+    def language(self, lang_code: str):
         Select(self.language_select).select_by_value(lang_code)
         return True
 
@@ -145,24 +149,36 @@ class AppointmentPage(ABC, BasePage):
         pass
 
     def schedule(self, options: list, *args, **kwargs) -> dict:
-        office = choice(options)
-        self.branch_option = office
-        date = min([
-            datetime.strptime('%Y - %B', x) for x in self.dates
-        ])
-        self.date = date.strftime('%Y - %B')
-        day = min([
-            f"0{x.lstrip('0')}" for x in self.days
-        ]).lstrip()
-        date = date.replace(day=int(day))
-        self.day = day
-        self.time = (time := min(
-            self.get_schedule_times(date, *args, **kwargs)
-        ))
-        hour, minute = map(
-            lambda x: int(x.lstrip('0')), time.split(':')
-        )
-        date = date.replace(hour=hour, minute=minute)
+        coptions = options[:]
+        now = (datetime.now() + timedelta(
+            days=self.driver.account.updates.day_offset
+        )).date()
+        while coptions:
+            office = coptions[0]
+            self.branch_option = office
+            date = min([
+                datetime.strptime(x, '%Y - %B') for x in self.dates
+            ])
+            self.date = date.strftime('%Y - %B')
+            if now.year == date.year and now.month == date.month:
+                days = filter(
+                    lambda x: date.replace(day=int(x)) >= now, self.days
+                )
+            else:
+                days = self.days
+            day = min([f"0{x}" for x in days]).lstrip()
+            date = date.replace(day=int(day))
+            self.day = day
+            times = self.get_schedule_times(date, office, *args, **kwargs)
+            if not times:
+                coptions.pop(0)
+            else:
+                self.time = (time := min(times))
+                break
+        else:
+            raise ValueError
+        time = datetime.strptime(time, '%H:%M').time()
+        date = datetime.combine(date.date(), time)
         self.submit()
         return {'office': office, 'date': date}
 
@@ -236,10 +252,26 @@ class AppointmentPage(ABC, BasePage):
             return Select(self.day_select).first_selected_option
         except exceptions.NoSuchElementException:
             return None
-    
+
     @day.setter
     def day(self, value: str):
         Select(self.day_select).select_by_visible_text(value)
+
+    @property
+    def all_meetings(self):
+        for office in self.branch_options:
+            self.branch_option = office
+            for date in self.dates:
+                self.date = date
+                date = datetime.strptime(date, '%Y - %B')
+                for day in self.days:
+                    self.day = day
+                    for time in self.times:
+                        yield {'datetime': datetime.combine(
+                            date.replace(day=int(day)).date(), 
+                            datetime.strptime(time, '%H:%M').time()
+                        ), 'office': office}
+                
 
     def submit(self):
         self.submit_button.click()
@@ -254,25 +286,44 @@ class MainAppointmentPage(AppointmentPage):
 
 
 class DependentAppointmentPage(AppointmentPage):
-    def schedule(
-            self, options: list, owner_datetime: datetime, 
-            owner_office: str, min_hour_offset: int = 0
-        ) -> dict:
-        if owner_office not in options:
-            return super().schedule(options, owner_datetime, min_hour_offset)
-        else:
-            data = super().schedule([owner_office])
-        return data
+    def schedule(self, options: list, min_hour_offset: int = 0) -> dict:
+        owner = self.driver.account
+        if owner.updates.office_signed in options:
+            try:
+                return super().schedule(
+                    [owner.updates.office_signed], min_hour_offset
+                )
+            except Exception:
+                pass
+        return super().schedule(options, min_hour_offset)
 
     def get_schedule_times(
-                self, approximate_date: datetime, start_date: datetime, 
+                self, approximate_date: datetime, approximate_office: str,
                 min_hour_offset: int = 0
             ):
-        if start_date.date() == approximate_date:
-            start_time = start_date.time()
-            start_time = start_time.replace(
-                hour=start_time.hour + min_hour_offset
-            )
-            return filter(lambda x: x > start_time, self.times)
-        else:
-            return self.times
+        owner = self.driver.account
+        meetings = [
+            [x.datetime_signed, x.office_signed] 
+            for x in (owner.updates, *owner.dependents) 
+            if x.datetime_signed is not None 
+        ]
+        meetings = [
+            x for x in meetings 
+            if x[0].date() == approximate_date.date()
+        ]
+        times = [datetime.strptime(x, '%H:%M').time() for x in self.times]
+        if meetings:
+            for date, office in meetings:
+                if office == approximate_office:
+                    continue
+                meeting_time = date.time()
+                end_time = meeting_time.replace(
+                    hour=meeting_time.hour + min_hour_offset
+                )
+                start_time = meeting_time.replace(
+                    hour=meeting_time.hour - min_hour_offset
+                )
+                times = filter(
+                    lambda x: x <= start_time and x >= end_time, times
+                )
+        return [x.strftime('%H:%M') for x in times]

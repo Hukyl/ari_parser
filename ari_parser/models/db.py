@@ -117,6 +117,7 @@ class AccountDatabase(AbstractDatabase):
         self.execute(
             '''CREATE TABLE IF NOT EXISTS updates(
                 id INTEGER UNIQUE,
+                day_offset INTEGER DEFAULT 0,
                 status VARCHAR DEFAULT "Unidentified",
                 datetime_signed DATETIME DEFAULT NULL,
                 office_signed VARCHAR DEFAULT NULL,
@@ -127,7 +128,8 @@ class AccountDatabase(AbstractDatabase):
             '''CREATE TABLE IF NOT EXISTS dependents(
                 owner_id INTEGER,
                 name VARCHAR,
-                is_signed BOOLEAN DEFAULT 0,
+                datetime_signed DATETIME DEFAULT NULL,
+                office_signed VARCHAR DEFAULT NULL,
                 FOREIGN KEY (owner_id) REFERENCES accounts(id),
                 UNIQUE (name) ON CONFLICT IGNORE      
             )'''
@@ -139,8 +141,7 @@ class AccountDatabase(AbstractDatabase):
             ) -> Union[bool, int]:
         if not self.check_email_exists(email):
             self.execute(
-                "INSERT INTO accounts(email, password, auth_token, session_id) \
-                VALUES (?, ?, ?, ?)",
+                "INSERT INTO accounts VALUES (?, ?, ?, ?)",
                 (email, password, auth_token, session_id)
             )
             account_id = self.execute(
@@ -150,10 +151,12 @@ class AccountDatabase(AbstractDatabase):
             return account_id
         raise exceptions.AccountAlreadyExistsException
 
-    def add_dependent(self, owner_id: int, name: str, is_signed: bool = False):
+    def add_dependent(
+            self, owner_id: int, name: str, 
+            datetime_signed: datetime = None, office_signed: str = None):
         self.execute(
-            "INSERT INTO dependents(owner_id, name, is_signed) \
-            VALUES (?, ?, ?)", (owner_id, name, is_signed)
+            "INSERT INTO dependents VALUES (?, ?, ?, ?)", 
+            (owner_id, name, datetime_signed, office_signed)
         )
         return True
 
@@ -191,7 +194,6 @@ class AccountDatabase(AbstractDatabase):
             data = self.execute(
                 'SELECT * FROM dependents WHERE id = ?', (dependent_id, )
             )[0]
-            data.pop('id')
             data.pop('owner_id')
             return data
         raise exceptions.DependentDoesNotExistException

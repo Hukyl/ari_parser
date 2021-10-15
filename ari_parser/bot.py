@@ -66,16 +66,18 @@ class Bot(Observer):
     def send_error(self, email:str, message: str):
         message = (
             f'<b>Error</b>\n<b>Email</b>: {email}\n<b>Message</b>: {message}'
-        )    
+        )
         for chat in Chat.get_subscribed():
             self._bot.send_message(chat.id, message)
 
     def notify_errors(self, func):
         def inner(driver, *args, **kwargs):
-            func(driver, *args, **kwargs)
+            if func(driver, *args, **kwargs) is True:
+                return
             self.send_error(driver.account.email, 'crawler error')
             sleep(30 * 60)
-            func(driver, *args, **kwargs)
+            if func(driver, *args, **kwargs) is True:
+                return
             self.send_error(driver.account.email, 'crawler error')
         return inner
 

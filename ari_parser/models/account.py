@@ -63,7 +63,6 @@ class Dependent:
     _db = AccountDatabase()
 
     def __init__(self, id_: int, owner: Account):
-        self.__dict__['id'] = id_
         self.__dict__['owner'] = owner
         for k, v in self._db.get_dependent(id_):
             self.__dict__[k] = v
@@ -71,3 +70,7 @@ class Dependent:
     def __setattr__(self, attr: str, value: Any):
         self._db.change_dependent(self.id, **{attr: value})
         super().__setattr__(attr, value)
+
+    @property
+    def is_signed(self):
+        return self.datetime_signed and self.office_signed
