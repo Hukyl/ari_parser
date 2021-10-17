@@ -85,6 +85,10 @@ class Bot(Observer):
         self._bot.infinite_polling()
 
 
-if __name__ == '__main__':
+def main():
     bot = Bot()
     bot.infinite_polling()
+
+
+if __name__ == '__main__':
+    main()

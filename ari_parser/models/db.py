@@ -6,7 +6,7 @@ from typing import Union
 
 import settings
 from . import exceptions
-from utils import Singleton
+from utils import Singleton, xor
 
 
 sqlite3.register_adapter(
@@ -24,7 +24,7 @@ class AbstractDatabaseMeta(Singleton, abc.ABCMeta):
 
 class AbstractDatabase(abc.ABC, metaclass=AbstractDatabaseMeta):
     def __init__(self, *, db_name:str=None):
-        self.DB_NAME = db_name or settings.DB_NAME
+        self.db_name = db_name or settings.DB_NAME
         self.setup_db()
 
     @staticmethod
@@ -38,7 +38,7 @@ class AbstractDatabase(abc.ABC, metaclass=AbstractDatabaseMeta):
     def execute(self, sql, params=tuple()) -> list[dict]:
         with threading.Lock():
             with sqlite3.connect(
-                        self.DB_NAME, detect_types=sqlite3.PARSE_DECLTYPES
+                        self.db_name, detect_types=sqlite3.PARSE_DECLTYPES
                     ) as conn:
                 conn.row_factory = self.dict_factory
                 return conn.execute(sql, params).fetchall()
@@ -137,11 +137,12 @@ class AccountDatabase(AbstractDatabase):
 
     def add_account(
                 self, email: str, password: str, 
-                auth_token:str=None, session_id:str=None
+                auth_token: str = None, session_id: str = None
             ) -> Union[bool, int]:
-        if not self.check_email_exists(email):
+        if not self.check_account_exists(email=email):
             self.execute(
-                "INSERT INTO accounts VALUES (?, ?, ?, ?)",
+                "INSERT INTO accounts(email, password, auth_token, session_id) \
+                 VALUES (?, ?, ?, ?)",
                 (email, password, auth_token, session_id)
             )
             account_id = self.execute(
@@ -155,73 +156,90 @@ class AccountDatabase(AbstractDatabase):
             self, owner_id: int, name: str, 
             datetime_signed: datetime = None, office_signed: str = None):
         self.execute(
-            "INSERT INTO dependents VALUES (?, ?, ?, ?)", 
+            """INSERT INTO dependents(
+                owner_id, name, datetime_signed, office_signed
+            ) VALUES (?, ?, ?, ?)""", 
             (owner_id, name, datetime_signed, office_signed)
         )
         return True
 
-    def get_account(self, *, account_id:int=None, email:str=None) -> dict:
-        if not (account_id or email):
-            raise ValueError('either account_id or email must be passed')
+    @xor(['account_id', 'email'])
+    def get_account(
+            self, *, account_id: int = None, email: str = None
+        ) -> dict:
         if account_id:
-            if not self.check_account_exists(account_id):
+            if not self.check_account_exists(account_id=account_id):
                 raise exceptions.AccountDoesNotExistException
             clause, param = "WHERE id = ?", account_id
         else:
-            if not self.check_email_exists(email):
+            if not self.check_account_exists(email=email):
                 raise exceptions.AccountDoesNotExistException
             clause, param = "WHERE email = ?", email
         return self.execute("SELECT * FROM accounts %s" % clause, (param, ))[0]
 
     def get_updates(self, account_id: int) -> dict:
-        if self.check_account_exists(account_id):
+        if self.check_account_exists(account_id=account_id):
             data = self.execute(
                 "SELECT * FROM updates WHERE id = ?", (account_id, )
             )[0]
-            data.pop('id')
             return data
         raise exceptions.AccountDoesNotExistException
 
-    def check_dependent_exists(self, dependent_id: int) -> bool:
+    @xor(['dependent_id', 'dependent_name'])
+    def check_dependent_exists(
+            self, *, dependent_id: int = None, dependent_name: str = None
+        ) -> bool:
+        if dependent_id:
+            clause, param = 'WHERE id = ?', dependent_id
+        else:
+            clause, param = 'WHERE name = ?', dependent_name
         return len(
             self.execute(
-                'SELECT id FROM accounts WHERE id = ?', (dependent_id,)
+                'SELECT id FROM accounts %s' % clause, (param,)
             )
         ) > 0
 
-    def get_dependent(self, dependent_id: int) -> dict:
-        if self.check_dependent_exists(dependent_id):
+    @xor(['dependent_id', 'dependent_name'])
+    def get_dependent(
+            self, *, dependent_id: int = None, dependent_name: str = None
+        ) -> dict:
+        if self.check_dependent_exists(
+                dependent_id=dependent_id, dependent_name=dependent_name
+            ):
+            clause = 'WHERE {} = ?'.format('id' if dependent_id else 'name') 
+            param = dependent_id or dependent_name
             data = self.execute(
-                'SELECT * FROM dependents WHERE id = ?', (dependent_id, )
+                'SELECT * FROM dependents %s' % clause, (param, )
             )[0]
-            data.pop('owner_id')
             return data
         raise exceptions.DependentDoesNotExistException
 
     def get_dependents(self, account_id: int) -> list[int]:
-        if self.check_account_exists(account_id):
+        if self.check_account_exists(account_id=account_id):
             return [
-                data['id'] for data in self.execute(
-                    'SELECT id FROM dependents WHERE owner_id = ?', 
+                data['name'] for data in self.execute(
+                    'SELECT name FROM dependents WHERE owner_id = ?', 
                     (account_id, )
                 )
             ]
         raise exceptions.AccountDoesNotExistException
 
-    def check_email_exists(self, email: str) -> bool:
-        return len(
-            self.execute('SELECT id FROM accounts WHERE email = ?', (email,))
-        ) > 0
-
-    def check_account_exists(self, account_id:int) -> bool:
-        return len(
-            self.execute(
-                'SELECT id FROM accounts WHERE id = ?', (account_id,)
+    @xor(['account_id', 'email'])
+    def check_account_exists(
+            self, *, account_id: int = None, email: str = None
+        ) -> bool:
+        if account_id:
+            query = self.execute(
+                'SELECT id FROM accounts WHERE id = ?', (account_id, )
             )
-        ) > 0
+        else:
+            query = self.execute(
+                'SELECT id FROM accounts WHERE email = ?', (email, )
+            )
+        return len(query) > 0
 
-    def change_account(self, account_id:int, **kwargs):
-        if self.check_account_exists(account_id):
+    def change_account(self, account_id: int, **kwargs):
+        if self.check_account_exists(account_id=account_id):
             try:
                 for k, v in kwargs.items():
                     self.execute(
@@ -236,8 +254,8 @@ class AccountDatabase(AbstractDatabase):
                 return True
         raise exceptions.AccountDoesNotExistError
 
-    def change_update(self, account_id:int, **kwargs):
-        if self.check_account_exists(account_id):
+    def change_update(self, account_id: int, **kwargs):
+        if self.check_account_exists(account_id=account_id):
             try:
                 for k, v in kwargs.items():
                     self.execute(
@@ -252,8 +270,8 @@ class AccountDatabase(AbstractDatabase):
                 return True
         raise exceptions.AccountDoesNotExistError
 
-    def change_dependent(self, dependent_id:int, **kwargs):
-        if self.check_dependent_exists(dependent_id):
+    def change_dependent(self, dependent_id: int, **kwargs):
+        if self.check_dependent_exists(dependent_id=dependent_id):
             try:
                 for k, v in kwargs.items():
                     self.execute(

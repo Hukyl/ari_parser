@@ -1,8 +1,35 @@
+from functools import wraps
 import re
 from typing import Iterable
 from threading import Event
 import collections
 from contextlib import contextmanager
+
+
+def xor(parameters: list):
+    """
+    Accept only one of given parameters
+
+    Works only with keyword-only parameters
+    """
+
+    def outer(func):
+        @wraps(func)
+        def inner(*args, **kwargs):
+            entries = len([x for x in parameters if x in kwargs])
+            if entries == 0:
+                raise ValueError(
+                    f'one of {", ".join(parameters)} must be passed'
+                )
+            elif entries > 1:
+                raise ValueError(
+                    f'only one of {", ".join(parameters)} must be passed'
+                )
+            else:
+                return func(*args, **kwargs)
+        return inner
+    return outer
+
 
 
 @contextmanager
