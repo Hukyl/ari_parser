@@ -39,6 +39,8 @@ def thread_checker(account: dict[str, str], data: dict):
     account = create_account(account, data)
     driver = Driver(account)
     account.updates.add_observer(bot)
+    for dependent in account.dependents:
+        dependent.add_observer(bot)
     page = HomePage(driver)
     page.get()
     page.language = 'en'
@@ -134,6 +136,7 @@ def check_appointment(driver: Driver, event: threading.Event):
             driver.safe_get(page.URL)
             page.language = 'en'
             page.matter_option = 'ARI'
+            breakpoint()
             available_meetings = list(page.all_meetings)
             if not available_meetings:
                 logger.log(f'{account.email}: no appointments have appeared')
@@ -169,6 +172,10 @@ def check_appointment(driver: Driver, event: threading.Event):
                         # TODO: check if meeting was scheduled successfully
                     except selenium_exceptions.NoSuchElementException:
                         continue
+                    except Exception as e:
+                        logger.log(
+                            f'{account.email}: appointment {e.__class__}'
+                        )
                     logger.log((
                         '{}: main was scheduled on {} at "{}" office'
                     ).format(
@@ -180,7 +187,9 @@ def check_appointment(driver: Driver, event: threading.Event):
                         'office_signed': meeting['office'], 
                         'datetime_signed': meeting['datetime']
                     })
-                    available_meetings.remove(meeting)
+                    available_meetings = available_meetings[
+                        available_meetings.index(meeting) + 1:
+                    ]
                     break
                 else:
                     logger.log(
@@ -204,7 +213,7 @@ def check_appointment(driver: Driver, event: threading.Event):
                     hours=settings.AppointmentData.HOUR_OFFICE_OFFSET)
                 available_meetings = list(filter(lambda x: (
                     (
-                        x['datetime'] <= smeeting_start and 
+                        x['datetime'] <= smeeting_start or
                         x['datetime'] >= smeeting_end
                     ) 
                     if x['office'] != smeeting['office'] else True
@@ -214,7 +223,6 @@ def check_appointment(driver: Driver, event: threading.Event):
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
                 )
             )
-            breakpoint()
             for dependent in sorted(account.dependents, key=lambda x: x.id):
                 if dependent.is_signed:
                     continue
@@ -235,6 +243,11 @@ def check_appointment(driver: Driver, event: threading.Event):
                         # TODO: check if meeting was scheduled successfully
                     except selenium_exceptions.NoSuchElementException:
                         continue
+                    except Exception as e:
+                        logger.log(
+                            f'{account.email}: {dependent.name} '
+                            f'appointment {e.__class__}'
+                        )
                     logger.log((
                         '{}: {} was scheduled on {} at "{}" office'
                     ).format(
@@ -242,13 +255,15 @@ def check_appointment(driver: Driver, event: threading.Event):
                         meeting['datetime'].strftime('%Y-%m-%d %H:%M'),
                         meeting['office']
                     ))
-                    dependent.datetime_signed = meeting['datetime']
-                    dependent.office_signed = meeting['office']
-                    available_meetings.remove(meeting)
+                    dependent.update({
+                        'office_signed': meeting['office'], 
+                        'datetime_signed': meeting['datetime']
+                    })
+                    available_meetings = available_meetings[
+                        available_meetings.index(meeting) + 1:
+                    ]
+                    driver.close_tab()
                     break
-                else:
-                    break
-                driver.close_tab()
             sleep(3)
 
 

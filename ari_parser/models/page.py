@@ -17,8 +17,8 @@ class BasePage(ABC):
     Base class to initialize the base page that will be called from all
     pages
     """
-    # URL = Url("https://ari.sef.pt/")
-    URL = Url("http://127.0.0.1/")
+    URL = Url("https://ari.sef.pt/")
+    # URL = Url("http://127.0.0.1/")
     LOCATORS = locators.BasePageLocators
 
     def __init__(self, driver):

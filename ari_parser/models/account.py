@@ -62,10 +62,11 @@ class Updates(Observable):
         super().__setattr__(attr, value)
 
 
-class Dependent:
+class Dependent(Observable):
     _db = AccountDatabase()
 
     def __init__(self, name: str, owner: Account):
+        super().__init__()
         self.__dict__['owner'] = owner
         for k, v in self._db.get_dependent(dependent_name=name).items():
             self.__dict__[k] = v
@@ -74,6 +75,11 @@ class Dependent:
     def __setattr__(self, attr: str, value: Any):
         self._db.change_dependent(self.id, **{attr: value})
         super().__setattr__(attr, value)
+
+    def update(self, attrs: dict[str, Any]):
+        for k, v in attrs.items():
+            setattr(self, k, v)
+        self.notify_observers(attrs)
 
     @property
     def is_signed(self):
