@@ -59,6 +59,7 @@ class Driver(webdriver.Chrome):
             service_log_path=service_log_path,
             seleniumwire_options=seleniumwire_options
         )
+        self.tabs = self.window_handles[:]
 
     @property
     def is_redirected_to_login(self):
@@ -128,15 +129,22 @@ class Driver(webdriver.Chrome):
             file.write(self.page_source)
 
     def open_new_tab(self):
-        self.execute_script("window.open('', '_blank').focus()")
+        self.execute_script("window.open('', '_blank')")
+        tab_name = (set(self.window_handles) - set(self.tabs)).pop()
+        self.tabs.append(tab_name)
+        self.switch_to_tab(-1)
         return True
 
     def close_tab(self):
+        tab_name = self.current_window_handle
         self.execute_script('window.close();')
+        self.tabs.remove(tab_name)
+        self.switch_to_tab(0)
         return True
 
     def switch_to_tab(self, index:int, /):
-        self.switch_to_window(self.window_handles[index])
+        tab_name = self.tabs[index]
+        self.switch_to_window(tab_name)
         return True
 
     def __del__(self):

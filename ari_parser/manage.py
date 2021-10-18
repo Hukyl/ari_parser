@@ -32,7 +32,7 @@ if __name__ == '__main__':
     if args.command is None:
         parser.print_help()
     elif args.command == 'run':
-        if args.only_bot:
+        if args.bot_only:
             bot.main()
         else:
             crawler.main()

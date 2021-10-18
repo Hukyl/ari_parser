@@ -32,9 +32,6 @@ class Url(object):
             self.url = self.path
         self.url = f'{self.path}{self.encode_params(params)}'
 
-    def rsplit(self):
-        return self.parent, self.url.rsplit('/', maxsplit=1)[1]
-
     @staticmethod
     def decode_params(params_str:str):
         result = {}
@@ -73,7 +70,7 @@ class Url(object):
         return self.__class__(self.url)
 
     def rsplit(self):
-        return self.parent, self.url.rsplit('/', maxsplit=1)[1]
+        return self.parent, self.path.rsplit('/', maxsplit=1)[1]
 
     def __eq__(self, other) -> bool:
         if isinstance(other, self.__class__):

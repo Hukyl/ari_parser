@@ -24,7 +24,7 @@ bot = Bot()
 
 
 def create_account(account_data: FrozenDict, data: list[str]):
-    if not Account.exists(account_data['email']):
+    if not Account.exists(email=account_data['email']):
         Account.create_account(account_data['email'], account_data['password'])
     account = Account(account_data['email'])
     account.password = account_data['password']
@@ -51,13 +51,13 @@ def thread_checker(account: dict[str, str], data: dict):
     if account.auth_token:
         driver.add_cookie({
             'name': settings.AUTH_TOKEN_COOKIE_NAME, 
-            'value': account.auth_token, 'domain': page.URL.domain
+            'value': account.auth_token,
         })
         logger.log(f"{account.email}: an auth token cookie is used")
     if account.session_id:
         driver.add_cookie({
             'name': settings.SESSION_ID_COOKIE_NAME, 
-            'value': account.session_id, 'domain': page.URL.domain
+            'value': account.session_id,
         })
         logger.log(f"{account.email}: a session id cookie is used")      
     event = threading.Event()
@@ -97,6 +97,24 @@ def check_status(driver: Driver, event: threading.Event):
         sleep(random.choice(settings.RequestTimeout.STATUS))
 
 
+def filter_available_meetings(meetings: dict, account: Account) -> dict:
+    now = (datetime.now() + timedelta(
+        days=account.updates.day_offset
+    )).date()
+    meetings = list(filter(
+        lambda x: (
+            x['office'] not in settings.AppointmentData.BLOCKED_OFFICES
+        ), meetings
+    ))
+    meetings = list(filter(
+        lambda x: x['datetime'].date() >= now, meetings
+    ))
+    meetings.sort(key=lambda x: (
+        x['office'] not in settings.AppointmentData.PRIORITY_OFFICES
+    ))
+    return meetings
+
+
 @bot.notify_errors
 @logger.catch_error
 def check_appointment(driver: Driver, event: threading.Event):
@@ -125,35 +143,14 @@ def check_appointment(driver: Driver, event: threading.Event):
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
                 )
             )
-            now = (datetime.now() + timedelta(
-                days=account.updates.day_offset
-            )).date()
-            available_meetings = list(filter(
-                lambda x: (
-                    x['office'] in settings.AppointmentData.BLOCKED_OFFICES
-                ), available_meetings
-            ))
+            available_meetings = filter_available_meetings(
+                available_meetings, account
+            )
             logger.log(
-                f'{account.email}: appointments without blocked offices' + (
+                f'{account.email}: appointments after filter and sort' + (
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
                 )
-            )
-            available_meetings = list(filter(
-                lambda x: x['datetime'].date() >= now, available_meetings
-            ))
-            logger.log(
-                f'{account.email}: appointments after day offset filter' + (
-                    '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
-                )
-            )
-            available_meetings.sort(key=lambda x: (
-                x['office'] not in settings.AppointmentData.PRIORITY_OFFICES
-            ))
-            logger.log(
-                f'{account.email}: appointments sorted by priority' + (
-                    '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
-                )
-            )
+            )            
             driver.save_snapshot(settings.SNAPSHOTS_PATH)
             if account.updates.status == (
                     settings.DISABLE_APPOINTMENT_CHECKS_STATUS
@@ -205,18 +202,19 @@ def check_appointment(driver: Driver, event: threading.Event):
                     hours=settings.AppointmentData.HOUR_OFFICE_OFFSET)
                 smeeting_end = smeeting['datetime'] + timedelta(
                     hours=settings.AppointmentData.HOUR_OFFICE_OFFSET)
-                available_meetings = filter(lambda x: (
+                available_meetings = list(filter(lambda x: (
                     (
                         x['datetime'] <= smeeting_start and 
                         x['datetime'] >= smeeting_end
                     ) 
                     if x['office'] != smeeting['office'] else True
-                ))
+                ), available_meetings))
             logger.log(
                 f'{account.email}: meetings after time offset filter' + (
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
                 )
             )
+            breakpoint()
             for dependent in sorted(account.dependents, key=lambda x: x.id):
                 if dependent.is_signed:
                     continue
@@ -229,7 +227,6 @@ def check_appointment(driver: Driver, event: threading.Event):
                 p.set_applicant(dependent.name)
                 p.get_applicant_appointment()
                 p = AppointmentPage(driver)
-                p.matter_option = 'ARI'
                 driver.save_snapshot(settings.SNAPSHOTS_PATH)
                 for meeting in available_meetings:
                     try:
@@ -245,10 +242,13 @@ def check_appointment(driver: Driver, event: threading.Event):
                         meeting['datetime'].strftime('%Y-%m-%d %H:%M'),
                         meeting['office']
                     ))
-                    dependent.datetime_signed = meeting['date']
+                    dependent.datetime_signed = meeting['datetime']
                     dependent.office_signed = meeting['office']
                     available_meetings.remove(meeting)
                     break
+                else:
+                    break
+                driver.close_tab()
             sleep(3)
 
 

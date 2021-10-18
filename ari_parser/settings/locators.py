@@ -27,6 +27,9 @@ class HomePageLocators(BasePageLocators):
 
 class ApplicantsPageLocators(BasePageLocators):
     TABLE = (By.CSS_SELECTOR, 'table#Conteudo_dg > tbody')
+    APPLICANT_CALENDAR_BUTTON = (
+        By.CSS_SELECTOR, '#Conteudo_btnAgendamento'
+    )
 
 
 

@@ -31,8 +31,8 @@ class Account:
         cls._db.add_account(*args, **kwargs)
 
     @classmethod
-    def exists(cls, email: str):
-        return cls._db.check_email_exists(email)
+    def exists(cls, **kwargs):
+        return cls._db.check_account_exists(**kwargs)
 
     def __setattr__(self, attr: str, value: Any):
         self._db.change_account(self.id, **{attr: value})
@@ -67,7 +67,7 @@ class Dependent:
 
     def __init__(self, name: str, owner: Account):
         self.__dict__['owner'] = owner
-        for k, v in self._db.get_dependent(dependent_name=name):
+        for k, v in self._db.get_dependent(dependent_name=name).items():
             self.__dict__[k] = v
         del self.owner_id
 

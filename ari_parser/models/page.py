@@ -1,6 +1,6 @@
 from abc import ABC
 from time import sleep
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Union
 
 from selenium.webdriver.support.ui import WebDriverWait
@@ -17,7 +17,8 @@ class BasePage(ABC):
     Base class to initialize the base page that will be called from all
     pages
     """
-    URL = Url("https://ari.sef.pt/")
+    # URL = Url("https://ari.sef.pt/")
+    URL = Url("http://127.0.0.1/")
     LOCATORS = locators.BasePageLocators
 
     def __init__(self, driver):
@@ -25,7 +26,6 @@ class BasePage(ABC):
 
     def __getattr__(self, attr):
         locator = getattr(self.LOCATORS, attr.upper())
-        sleep(1)
         webelement = self.get_webelement(locator)
         webelement.found_by = locator
         return webelement
@@ -133,14 +133,16 @@ class ApplicantsPage(BasePage):
 
     def set_applicant(self, name: str):
         try:
-            return self.table.find_element('xpath', f'//td[.={name}]/../td[0]')
+            self.table.find_element(
+                'xpath', f'//td[.="{name}"]/../td[1]/input'
+            ).click()
         except exceptions.TimeoutException:
             raise ValueError(
                 f'unable to locate element with name "{name}"'
             ) from None
 
     def get_applicant_appointment(self):
-        self.applicant_appointment_button.click()
+        self.applicant_calendar_button.click()
         return True
 
 
@@ -149,6 +151,7 @@ class AppointmentPage(BasePage):
     LOCATORS = locators.AppointmentPageLocators
 
     def schedule(self, data: dict[str, Union[datetime, str]]) -> dict:
+        self.matter_option = 'ARI'
         self.branch_option = data['office']
         self.date = data['datetime'].strftime('%Y - %B')
         self.day = str(data['datetime'].day)
@@ -235,12 +238,12 @@ class AppointmentPage(BasePage):
     def all_meetings(self):
         for office in self.branch_options:
             self.branch_option = office
-            for date in self.dates:
+            for date in self.dates[1:]:
                 self.date = date
                 date = datetime.strptime(date, '%Y - %B')
-                for day in self.days:
+                for day in self.days[1:]:
                     self.day = day
-                    for time in self.times:
+                    for time in self.times[1:]:
                         yield {'datetime': datetime.combine(
                             date.replace(day=int(day)).date(), 
                             datetime.strptime(time, '%H:%M').time()

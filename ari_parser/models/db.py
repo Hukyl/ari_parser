@@ -126,6 +126,7 @@ class AccountDatabase(AbstractDatabase):
         )
         self.execute(
             '''CREATE TABLE IF NOT EXISTS dependents(
+                id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE,
                 owner_id INTEGER,
                 name VARCHAR,
                 datetime_signed DATETIME DEFAULT NULL,
@@ -175,7 +176,9 @@ class AccountDatabase(AbstractDatabase):
             if not self.check_account_exists(email=email):
                 raise exceptions.AccountDoesNotExistException
             clause, param = "WHERE email = ?", email
-        return self.execute("SELECT * FROM accounts %s" % clause, (param, ))[0]
+        return self.execute(
+            "SELECT * FROM accounts %s" % clause, (param, )
+        )[0]
 
     def get_updates(self, account_id: int) -> dict:
         if self.check_account_exists(account_id=account_id):
@@ -195,7 +198,7 @@ class AccountDatabase(AbstractDatabase):
             clause, param = 'WHERE name = ?', dependent_name
         return len(
             self.execute(
-                'SELECT id FROM accounts %s' % clause, (param,)
+                'SELECT id FROM dependents %s' % clause, (param,)
             )
         ) > 0
 
@@ -203,9 +206,9 @@ class AccountDatabase(AbstractDatabase):
     def get_dependent(
             self, *, dependent_id: int = None, dependent_name: str = None
         ) -> dict:
-        if self.check_dependent_exists(
-                dependent_id=dependent_id, dependent_name=dependent_name
-            ):
+        name = 'dependent_id' if dependent_id else 'dependent_name'
+        value = dependent_id or dependent_name
+        if self.check_dependent_exists(**{name: value}):
             clause = 'WHERE {} = ?'.format('id' if dependent_id else 'name') 
             param = dependent_id or dependent_name
             data = self.execute(

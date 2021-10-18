@@ -81,13 +81,13 @@ class Bot(Observer):
             self.send_error(driver.account.email, 'crawler error')
         return inner
 
-    def infinite_polling(self):
-        self._bot.infinite_polling()
+    def infinity_polling(self):
+        self._bot.infinity_polling()
 
 
 def main():
     bot = Bot()
-    bot.infinite_polling()
+    bot.infinity_polling()
 
 
 if __name__ == '__main__':
