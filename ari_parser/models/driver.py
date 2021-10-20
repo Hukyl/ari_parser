@@ -131,8 +131,9 @@ class Driver(webdriver.Chrome):
     def open_new_tab(self):
         self.execute_script("window.open('', '_blank')")
         tab_name = (set(self.window_handles) - set(self.tabs)).pop()
-        self.tabs.append(tab_name)
-        self.switch_to_tab(-1)
+        index = self.tabs.index(self.current_window_handle) + 1
+        self.tabs.insert(index, tab_name)
+        self.switch_to_tab(index)
         return True
 
     def close_tab(self):
