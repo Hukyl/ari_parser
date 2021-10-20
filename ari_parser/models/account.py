@@ -79,7 +79,7 @@ class Dependent(Observable):
     def update(self, attrs: dict[str, Any]):
         for k, v in attrs.items():
             setattr(self, k, v)
-        self.notify_observers(attrs)
+        self.notify_observers(attrs | {'applicant_name': self.name})
 
     @property
     def is_signed(self):
