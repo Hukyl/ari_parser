@@ -1,12 +1,13 @@
 from time import sleep
 import logging
+from typing import Union
 
 from telebot import TeleBot, logger
 
 import settings
-from models.account import Updates
+from models.account import Updates, Dependent
 from models.chat import Chat
-from models import Observer
+from models import Observer, Observable
 
 
 logger.setLevel(logging.FATAL)
@@ -47,10 +48,10 @@ class Bot(Observer):
             _bot.reply_to(msg, "You have unsubscribed!")
 
     @staticmethod
-    def update(observable: Updates, attrs: dict, *, additional: dict):
+    def update(observable: Observable, attrs: dict, *, additional: dict):
         message = [f"<b>Email</b>: {observable.owner.email}"]
-        for k, v in attrs.items():
-            message.append(f"<b>{k.replace('_', '').title()}</b>: {v}")
+        for k in sorted(attrs):
+            message.append(f"<b>{k.replace('_', ' ').title()}</b>: {attrs[k]}")
         else:
             message = '\n'.join(message)
         for chat in Chat.get_subscribed():
