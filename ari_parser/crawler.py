@@ -30,7 +30,7 @@ def create_account(account_data: FrozenDict, data: list[str]):
     account.password = account_data['password']
     account.updates.day_offset = data['day_offset']
     for name in data['dependents']:
-        account.add_dependent(name)    
+        account.add_dependent(name)
     return account
 
 
@@ -39,8 +39,6 @@ def thread_checker(account: dict[str, str], data: dict):
     account = create_account(account, data)
     driver = Driver(account)
     account.updates.add_observer(bot)
-    for dependent in account.dependents:
-        dependent.add_observer(bot)
     page = HomePage(driver)
     page.get()
     page.language = 'en'
@@ -66,6 +64,22 @@ def thread_checker(account: dict[str, str], data: dict):
     event.set()
     driver.open_new_tab()
     driver.switch_to_tab(0)
+    for dependent in account.dependents:
+        driver.open_new_tab()
+        p = HomePage(driver)
+        p.get()
+        sleep(0.5)
+        p.language = 'en'
+        sleep(0.5)
+        p.click_applicants()
+        p = ApplicantsPage(driver)
+        sleep(0.5)
+        p.set_applicant(dependent.name)
+        sleep(0.5)
+        p.get_applicant_appointment()
+        sleep(2)
+    else:     
+        driver.switch_to_tab(0)
     for check in data['checks']:
         threading.Thread(
             target=globals()[f'check_{check}'], args=(driver, event), 
@@ -133,10 +147,9 @@ def check_appointment(driver: Driver, event: threading.Event):
             with threading.Lock():
                 driver.set_proxy(next(proxies))
             logger.log(f'{account.email}: checking appointments')
-            driver.safe_get(page.URL)
+            page.refresh()
             page.language = 'en'
             page.matter_option = 'ARI'
-            breakpoint()
             available_meetings = list(page.all_meetings)
             if not available_meetings:
                 logger.log(f'{account.email}: no appointments have appeared')
@@ -144,7 +157,7 @@ def check_appointment(driver: Driver, event: threading.Event):
             logger.log(
                 f'{account.email}: new appointments have appeared' + (
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
-                )
+                ), to_stdout=True
             )
             available_meetings = filter_available_meetings(
                 available_meetings, account
@@ -161,13 +174,14 @@ def check_appointment(driver: Driver, event: threading.Event):
                 logger.log(
                     '{}: inappropriate status for making appointments'.format(
                         account.email
-                    )
+                    ), to_stdout=True
                 )
                 return True
+            breakpoint()
             if not account.is_signed:
                 for meeting in available_meetings:
                     try:
-                        page.get()
+                        page.refresh()
                         is_success = page.schedule(meeting)
                         # TODO: check if meeting was scheduled successfully
                     except selenium_exceptions.NoSuchElementException:
@@ -182,7 +196,7 @@ def check_appointment(driver: Driver, event: threading.Event):
                         account.email, 
                         meeting['datetime'].strftime('%Y-%m-%d %H:%M'),
                         meeting['office']
-                    ))
+                    ), to_stdout=True)
                     account.updates.update({
                         'office_signed': meeting['office'], 
                         'datetime_signed': meeting['datetime']
@@ -223,22 +237,19 @@ def check_appointment(driver: Driver, event: threading.Event):
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
                 )
             )
-            for dependent in sorted(account.dependents, key=lambda x: x.id):
+            for tab_index, dependent in enumerate(
+                    sorted(account.dependents, key=lambda x: x.id), start=1
+                ):
                 if dependent.is_signed:
                     continue
-                driver.open_new_tab()
-                p = HomePage(driver)
-                p.get()
-                p.language = 'en'
-                p.click_applicants()
-                p = ApplicantsPage(driver)
-                p.set_applicant(dependent.name)
-                p.get_applicant_appointment()
+                driver.switch_to_tab(tab_index)
                 p = AppointmentPage(driver)
+                p.language = 'en'
                 driver.save_snapshot(settings.SNAPSHOTS_PATH)
+                dependent.add_observer(bot)
                 for meeting in available_meetings:
                     try:
-                        p.get()
+                        p.refresh()
                         is_success = p.schedule(meeting)
                         # TODO: check if meeting was scheduled successfully
                     except selenium_exceptions.NoSuchElementException:
@@ -254,7 +265,7 @@ def check_appointment(driver: Driver, event: threading.Event):
                         account.email, dependent.name,
                         meeting['datetime'].strftime('%Y-%m-%d %H:%M'),
                         meeting['office']
-                    ))
+                    ), to_stdout=True)
                     dependent.update({
                         'office_signed': meeting['office'], 
                         'datetime_signed': meeting['datetime']
@@ -262,7 +273,6 @@ def check_appointment(driver: Driver, event: threading.Event):
                     available_meetings = available_meetings[
                         available_meetings.index(meeting) + 1:
                     ]
-                    driver.close_tab()
                     break
             sleep(3)
 
