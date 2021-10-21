@@ -166,8 +166,9 @@ def check_appointment(driver: Driver, event: threading.Event):
                 f'{account.email}: appointments after filter and sort' + (
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
                 )
-            )            
+            )
             driver.save_snapshot(settings.SNAPSHOTS_PATH)
+            driver.save_screenshot(settings.SCREENSHOTS_PATH)
             if account.updates.status == (
                     settings.DISABLE_APPOINTMENT_CHECKS_STATUS
                 ):
@@ -177,7 +178,6 @@ def check_appointment(driver: Driver, event: threading.Event):
                     ), to_stdout=True
                 )
                 return True
-            breakpoint()
             if not account.is_signed:
                 for meeting in available_meetings:
                     try:

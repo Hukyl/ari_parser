@@ -21,7 +21,9 @@ class Account:
 
     @property
     def is_signed(self):
-        return self.updates.datetime_signed and self.updates.office_signed
+        return bool(
+            self.updates.datetime_signed and self.updates.office_signed
+        )
 
     def add_dependent(self, *args, **kwargs):
         self._db.add_dependent(self.id, *args, **kwargs)

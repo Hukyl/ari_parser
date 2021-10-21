@@ -12,6 +12,7 @@ __pycache__/
 
 snapshots/
 logs/
+screenshots/
 
 
 # Distribution / packaging

@@ -128,6 +128,15 @@ class Driver(webdriver.Chrome):
             ), 'w', encoding='utf-8') as file:
             file.write(self.page_source)
 
+    def save_screenshot(self, dirname: str):
+        os.makedirs(dirname, exist_ok=True)
+        now = datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
+        filename = os.path.join(
+            os.path.abspath(os.curdir), dirname, 
+            f"{now}__{self.account.email}__{self.url.rsplit()[1]}.png"
+        )
+        super().save_screenshot(filename)
+
     def open_new_tab(self):
         self.execute_script("window.open('', '_blank')")
         tab_name = (set(self.window_handles) - set(self.tabs)).pop()
