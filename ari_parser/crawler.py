@@ -29,6 +29,7 @@ def create_account(account_data: FrozenDict, data: list[str]):
     account = Account(account_data['email'])
     account.password = account_data['password']
     account.updates.day_offset = data['day_offset']
+    account.updates.unavailability_datetime = data['unavailability_datetime']
     for name in data['dependents']:
         account.add_dependent(name)
     return account
@@ -75,7 +76,7 @@ def thread_checker(account: dict[str, str], data: dict):
         p.set_applicant(dependent.name)
         p.get_applicant_appointment()
         sleep(2)
-    else:     
+    else:
         driver.switch_to_tab(0)
     for check in data['checks']:
         threading.Thread(
@@ -182,8 +183,16 @@ def check_appointment(driver: Driver, event: threading.Event):
                     ), to_stdout=True
                 )
                 return True
+            # Make appointment for main account
             if not account.is_signed:
-                for meeting in available_meetings:
+                account_appropriate_meetings = [
+                    x for x in available_meetings
+                    if all(
+                        x['datetime'] not in drange 
+                        for drange in account.updates.unavailability_datetime
+                    )
+                ]
+                for meeting in account_appropriate_meetings:
                     try:
                         page.refresh()
                         is_success = page.schedule(meeting)
@@ -224,6 +233,7 @@ def check_appointment(driver: Driver, event: threading.Event):
                     '\n\t- ' + '\n\t- '.join(map(str, scheduled_meetings))
                 )
             )
+            # filter out meetings that are too close to the existing ones
             for smeeting in scheduled_meetings:
                 smeeting_start = smeeting['datetime'] - timedelta(
                     hours=settings.AppointmentData.HOUR_OFFICE_OFFSET)
@@ -241,6 +251,7 @@ def check_appointment(driver: Driver, event: threading.Event):
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
                 )
             )
+            # Make appointments for depndents
             for tab_index, dependent in enumerate(
                     sorted(account.dependents, key=lambda x: x.id), start=1
                 ):

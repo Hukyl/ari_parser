@@ -3,6 +3,9 @@ import sqlite3
 import threading
 from datetime import datetime
 from typing import Union
+import pickle
+
+from datetimerange import DateTimeRange
 
 import settings
 from . import exceptions
@@ -16,6 +19,8 @@ sqlite3.register_converter(
     "datetime", 
     lambda x: datetime.strptime(x.decode("ascii"), '%Y-%m-%d %H:%M')
 )
+sqlite3.register_adapter(list, lambda x: pickle.dumps(x))
+sqlite3.register_converter("list", lambda x: pickle.loads(x))
 
 
 class AbstractDatabaseMeta(Singleton, abc.ABCMeta):
@@ -118,6 +123,7 @@ class AccountDatabase(AbstractDatabase):
             '''CREATE TABLE IF NOT EXISTS updates(
                 id INTEGER UNIQUE,
                 day_offset INTEGER DEFAULT 0,
+                unavailability_datetime LIST,
                 status VARCHAR DEFAULT "Unidentified",
                 datetime_signed DATETIME DEFAULT NULL,
                 office_signed VARCHAR DEFAULT NULL,
@@ -132,7 +138,7 @@ class AccountDatabase(AbstractDatabase):
                 datetime_signed DATETIME DEFAULT NULL,
                 office_signed VARCHAR DEFAULT NULL,
                 FOREIGN KEY (owner_id) REFERENCES accounts(id),
-                UNIQUE (name) ON CONFLICT IGNORE      
+                UNIQUE (name) ON CONFLICT IGNORE
             )'''
         )
 
@@ -149,7 +155,10 @@ class AccountDatabase(AbstractDatabase):
             account_id = self.execute(
                 'SELECT id FROM accounts WHERE email = ?', (email,)
             )[0]['id']
-            self.execute("INSERT INTO updates(id) VALUES (?)", (account_id, ))
+            self.execute(
+                "INSERT INTO updates(id, unavailability_datetime) \
+                VALUES (?, ?)", (account_id, [])
+            )
             return account_id
         raise exceptions.AccountAlreadyExistsException
 
