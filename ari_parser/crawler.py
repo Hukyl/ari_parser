@@ -34,6 +34,7 @@ def create_account(account_data: FrozenDict, data: list[str]):
     return account
 
 
+@bot.notify_errors
 @logger.catch_error
 def thread_checker(account: dict[str, str], data: dict):
     account = create_account(account, data)
@@ -68,14 +69,10 @@ def thread_checker(account: dict[str, str], data: dict):
         driver.open_new_tab()
         p = HomePage(driver)
         p.get()
-        sleep(0.5)
         p.language = 'en'
-        sleep(0.5)
         p.click_applicants()
         p = ApplicantsPage(driver)
-        sleep(0.5)
         p.set_applicant(dependent.name)
-        sleep(0.5)
         p.get_applicant_appointment()
         sleep(2)
     else:     
@@ -147,6 +144,7 @@ def check_appointment(driver: Driver, event: threading.Event):
             with threading.Lock():
                 driver.set_proxy(next(proxies))
             logger.log(f'{account.email}: checking appointments')
+            breakpoint()
             page.refresh()
             page.language = 'en'
             page.matter_option = 'ARI'

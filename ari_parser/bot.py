@@ -1,11 +1,9 @@
 from time import sleep
 import logging
-from typing import Union
 
 from telebot import TeleBot, logger
 
 import settings
-from models.account import Updates, Dependent
 from models.chat import Chat
 from models import Observer, Observable
 
