@@ -111,17 +111,23 @@ def check_status(driver: Driver, event: threading.Event):
 
 
 def filter_available_meetings(meetings: dict, account: Account) -> dict:
-    now = (datetime.now() + timedelta(
+    min_datetime = (datetime.now() + timedelta(
         days=account.updates.day_offset
     )).date()
     meetings = list(filter(
         lambda x: (
             x['office'] not in settings.AppointmentData.BLOCKED_OFFICES
         ), meetings
-    ))
+    ))  # filter out inappropriate offices
     meetings = list(filter(
-        lambda x: x['datetime'].date() >= now, meetings
-    ))
+        lambda x: x['datetime'].date() >= min_datetime, meetings
+    ))  # filter offices that are too close to the present dateetime
+    if not account.is_signed:
+        if len(meetings) >= (
+                settings.AppointmentData.NUMBER_TO_INCREASE_DAY_OFFSET
+            ):
+            # if the amount of appointments is big, make an offset
+            meetings = meetings[len(meetings) // 2:]
     meetings.sort(key=lambda x: (
         x['office'] not in settings.AppointmentData.PRIORITY_OFFICES
     ))
