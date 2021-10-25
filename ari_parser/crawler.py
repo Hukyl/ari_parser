@@ -145,13 +145,12 @@ def check_appointment(driver: Driver, event: threading.Event):
     page = AppointmentPage(driver)
     account = driver.account
     while True:
-        sleep(random.choice(settings.RequestTimeout.APPOINTMENT))
+        sleep(random.choice(settings.RequestTimeout.APPOINTMENT.value))
         with cleared(event):
             driver.switch_to_tab(0)
             with threading.Lock():
                 driver.set_proxy(next(proxies))
             logger.log(f'{account.email}: checking appointments')
-            breakpoint()
             page.refresh()
             page.language = 'en'
             page.matter_option = 'ARI'
@@ -159,6 +158,9 @@ def check_appointment(driver: Driver, event: threading.Event):
             if not available_meetings:
                 logger.log(f'{account.email}: no appointments have appeared')
                 continue
+            settings.RequestTimeout.APPOINTMENT.value = (
+                settings.RequestTimeout.BURST_APPOINTMENT
+            )
             logger.log(
                 f'{account.email}: new appointments have appeared' + (
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))

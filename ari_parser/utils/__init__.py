@@ -6,6 +6,44 @@ import collections
 from contextlib import contextmanager
 
 
+class Default:
+    """
+    Usage:
+    ```
+    >>> d = Default(3, stash_count=2)
+    >>> d.value
+    3
+    >>> d.value = 5
+    >>> d.value
+    5
+    >>> d.value
+    5
+    >>> d.value
+    3
+    ```
+    """
+
+    def __init__(self, default_value, *, stash_count: int = 5):
+        self.default_value = default_value
+        self.default_stash_count = stash_count
+        self.__stash_count = None
+        self.__value = None
+
+    @property
+    def value(self):
+        if self.__value:
+            self.stash_count -= 1
+            if self.stash_count <= 0:
+                self.__value = None
+                self.stash_count = None
+        return self.__value or self.default_value
+
+    @value.setter
+    def value(self, value):
+        self.__value = value
+        self.stash_count = self.default_stash_count    
+
+
 def xor(parameters: list):
     """
     Accept only one of given parameters
