@@ -111,7 +111,7 @@ def check_status(driver: Driver, event: threading.Event):
         sleep(random.choice(settings.RequestTimeout.STATUS))
 
 
-def filter_available_meetings(meetings: dict, account: Account) -> dict:
+def prepare_meetings(meetings: dict, account: Account) -> dict:
     min_datetime = (datetime.now() + timedelta(
         days=account.updates.day_offset
     )).date()
@@ -129,9 +129,47 @@ def filter_available_meetings(meetings: dict, account: Account) -> dict:
             ):
             # if the amount of appointments is big, make an offset
             meetings = meetings[len(meetings) // 2:]
-    meetings.sort(key=lambda x: (
-        x['office'] not in settings.AppointmentData.PRIORITY_OFFICES
-    ))
+        meetings.sort(key=lambda x: (
+            x['office'] not in settings.AppointmentData.PRIORITY_OFFICES
+        ))
+    else:
+        scheduled_meetings = [
+            {'datetime': x.datetime_signed, 'office': x.office_signed}
+            for x in (account.updates, *account.dependents) 
+            if x.datetime_signed is not None 
+        ]
+        # filter out meetings that are too close to the existing ones
+        for smeeting in scheduled_meetings:
+            smeeting_start = smeeting['datetime'] - timedelta(
+                hours=settings.AppointmentData.HOUR_OFFICE_OFFSET)
+            smeeting_end = smeeting['datetime'] + timedelta(
+                hours=settings.AppointmentData.HOUR_OFFICE_OFFSET)
+            meetings = list(filter(lambda x: (
+                (
+                    x['datetime'] <= smeeting_start or
+                    x['datetime'] >= smeeting_end
+                ) 
+                if x['office'] != smeeting['office'] else True
+            ), meetings))
+        same_day_meetings = [
+            x for x in meetings if 
+            any(
+                x['datetime'].date() == y['datetime'].date() 
+                for y in scheduled_meetings
+            )
+        ]
+        for meeting in same_day_meetings:
+            meetings.remove(meeting)
+        closest = [
+            sorted(meetings, key=lambda x: abs(y['datetime'] - x['datetime'])) 
+            for y in same_day_meetings
+        ]
+        total_closest = []
+        for closest_by_index in zip(*closest):
+            for element in closest_by_index:
+                if element not in total_closest:
+                    total_closest.append(element)
+        meetings = total_closest
     return meetings
 
 
@@ -166,9 +204,7 @@ def check_appointment(driver: Driver, event: threading.Event):
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
                 ), to_stdout=True
             )
-            available_meetings = filter_available_meetings(
-                available_meetings, account
-            )
+            available_meetings = prepare_meetings(available_meetings, account)
             logger.log(
                 f'{account.email}: appointments after filter and sort' + (
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
@@ -225,29 +261,7 @@ def check_appointment(driver: Driver, event: threading.Event):
                         f'{account.email}: unable to make an appointment'
                     )
                     continue
-            scheduled_meetings = [
-                {'datetime': x.datetime_signed, 'office': x.office_signed}
-                for x in (account.updates, *account.dependents) 
-                if x.datetime_signed is not None 
-            ]
-            logger.log(
-                f'{account.email}: scheduled meetings' + (
-                    '\n\t- ' + '\n\t- '.join(map(str, scheduled_meetings))
-                )
-            )
-            # filter out meetings that are too close to the existing ones
-            for smeeting in scheduled_meetings:
-                smeeting_start = smeeting['datetime'] - timedelta(
-                    hours=settings.AppointmentData.HOUR_OFFICE_OFFSET)
-                smeeting_end = smeeting['datetime'] + timedelta(
-                    hours=settings.AppointmentData.HOUR_OFFICE_OFFSET)
-                available_meetings = list(filter(lambda x: (
-                    (
-                        x['datetime'] <= smeeting_start or
-                        x['datetime'] >= smeeting_end
-                    ) 
-                    if x['office'] != smeeting['office'] else True
-                ), available_meetings))
+            available_meetings = prepare_meetings(available_meetings, account)
             logger.log(
                 f'{account.email}: meetings after time offset filter' + (
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
