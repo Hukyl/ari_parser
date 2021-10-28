@@ -238,12 +238,12 @@ class AppointmentPage(BasePage):
     def all_meetings(self):
         for office in self.branch_options:
             self.branch_option = office
-            for date in self.dates[1:]:
+            for date in self.dates:
                 self.date = date
                 date = datetime.strptime(date, '%Y - %B')
-                for day in self.days[1:]:
+                for day in self.days:
                     self.day = day
-                    for time in self.times[1:]:
+                    for time in self.times:
                         yield {'datetime': datetime.combine(
                             date.replace(day=int(day)).date(), 
                             datetime.strptime(time, '%H:%M').time()
