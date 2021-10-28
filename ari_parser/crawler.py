@@ -35,7 +35,6 @@ def create_account(account_data: FrozenDict, data: list[str]):
     return account
 
 
-@bot.notify_errors
 @logger.catch_error
 def thread_checker(account: dict[str, str], data: dict):
     account = create_account(account, data)
@@ -123,6 +122,13 @@ def prepare_meetings(meetings: dict, account: Account) -> dict:
     meetings = list(filter(
         lambda x: x['datetime'].date() >= min_datetime, meetings
     ))  # filter offices that are too close to the present dateetime
+    meetings = [
+        x for x in meetings
+        if all(
+            x['datetime'] not in drange 
+            for drange in account.updates.unavailability_datetime
+        )
+    ]
     if not account.is_signed:
         if len(meetings) >= (
                 settings.AppointmentData.NUMBER_TO_INCREASE_DAY_OFFSET
@@ -152,8 +158,7 @@ def prepare_meetings(meetings: dict, account: Account) -> dict:
                 if x['office'] != smeeting['office'] else True
             ), meetings))
         same_day_meetings = [
-            x for x in meetings if 
-            any(
+            x for x in meetings if any(
                 x['datetime'].date() == y['datetime'].date() 
                 for y in scheduled_meetings
             )
@@ -169,7 +174,7 @@ def prepare_meetings(meetings: dict, account: Account) -> dict:
             for element in closest_by_index:
                 if element not in total_closest:
                     total_closest.append(element)
-        meetings = total_closest
+        meetings = same_day_meetings + total_closest
     return meetings
 
 
@@ -223,14 +228,7 @@ def check_appointment(driver: Driver, event: threading.Event):
                 return True
             # Make appointment for main account
             if not account.is_signed:
-                account_appropriate_meetings = [
-                    x for x in available_meetings
-                    if all(
-                        x['datetime'] not in drange 
-                        for drange in account.updates.unavailability_datetime
-                    )
-                ]
-                for meeting in account_appropriate_meetings:
+                for meeting in available_meetings:
                     try:
                         page.refresh()
                         is_success = page.schedule(meeting)
@@ -261,18 +259,15 @@ def check_appointment(driver: Driver, event: threading.Event):
                         f'{account.email}: unable to make an appointment'
                     )
                     continue
-            available_meetings = prepare_meetings(available_meetings, account)
-            logger.log(
-                f'{account.email}: meetings after time offset filter' + (
-                    '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
-                )
-            )
             # Make appointments for depndents
             for tab_index, dependent in enumerate(
                     sorted(account.dependents, key=lambda x: x.id), start=1
                 ):
                 if dependent.is_signed:
                     continue
+                available_meetings = prepare_meetings(
+                    available_meetings, account
+                )
                 driver.switch_to_tab(tab_index)
                 p = AppointmentPage(driver)
                 p.language = 'en'
