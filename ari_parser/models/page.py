@@ -145,6 +145,10 @@ class ApplicantsPage(BasePage):
         self.applicant_calendar_button.click()
         return True
 
+    @property
+    def applicant_status(self):
+        return self.applicant_status.text
+
 
 class AppointmentPage(BasePage):
     URL = BasePage.URL / 'ARIAgenda.aspx'

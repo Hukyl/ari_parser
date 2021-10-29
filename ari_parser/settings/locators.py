@@ -30,6 +30,7 @@ class ApplicantsPageLocators(BasePageLocators):
     APPLICANT_CALENDAR_BUTTON = (
         By.CSS_SELECTOR, '#Conteudo_btnAgendamento'
     )
+    APPLICANT_STATUS = (By.CSS_SELECTOR, "#Conteudo_txtSituacao")
 
 
 
