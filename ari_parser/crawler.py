@@ -119,9 +119,19 @@ def prepare_meetings(meetings: dict, account: Account) -> dict:
             x['office'] not in settings.AppointmentData.BLOCKED_OFFICES
         ), meetings
     ))  # filter out inappropriate offices
+    logger.log(
+        f'{account.email}: meetings without blocked offices' + (
+            '\n\t- ' + '\n\t- '.join(map(str, meetings))
+        ), to_stdout=True
+    )
     meetings = list(filter(
         lambda x: x['datetime'].date() >= min_datetime, meetings
     ))  # filter offices that are too close to the present dateetime
+    logger.log(
+        f'{account.email}: meetings filter by day offset' + (
+            '\n\t- ' + '\n\t- '.join(map(str, meetings))
+        ), to_stdout=True
+    )
     meetings = [
         x for x in meetings
         if all(
@@ -129,15 +139,34 @@ def prepare_meetings(meetings: dict, account: Account) -> dict:
             for drange in account.updates.unavailability_datetime
         )
     ]
+    logger.log(
+        f'{account.email}: meetings without unavailability periods' + (
+            '\n\t- ' + '\n\t- '.join(map(str, meetings))
+        ), to_stdout=True
+    )    
     if not account.is_signed:
         if len(meetings) >= (
                 settings.AppointmentData.NUMBER_TO_INCREASE_DAY_OFFSET
             ):
             # if the amount of appointments is big, make an offset
+            logger.log(
+                f'{account.email}: a big number of meetings ({len(meetings)})'
+                ' detected, making an offset'
+            )
             meetings = meetings[len(meetings) // 2:]
+            logger.log(
+                f'{account.email}: resulting meetings' + (
+                    '\n\t- ' + '\n\t- '.join(map(str, meetings))
+                ), to_stdout=True
+            )
         meetings.sort(key=lambda x: (
             x['office'] not in settings.AppointmentData.PRIORITY_OFFICES
         ))
+        logger.log(
+            f'{account.email}: meetings sorted by priority' + (
+                '\n\t- ' + '\n\t- '.join(map(str, meetings))
+            ), to_stdout=True
+        )
     else:
         scheduled_meetings = [
             {'datetime': x.datetime_signed, 'office': x.office_signed}
@@ -159,7 +188,7 @@ def prepare_meetings(meetings: dict, account: Account) -> dict:
             ), meetings))
         same_day_meetings = [
             x for x in meetings if any(
-                x['datetime'].date() == y['datetime'].date() 
+                x['datetime'].date() == y['datetime'].date()
                 for y in scheduled_meetings
             )
         ]
@@ -175,6 +204,11 @@ def prepare_meetings(meetings: dict, account: Account) -> dict:
                 if element not in total_closest:
                     total_closest.append(element)
         meetings = same_day_meetings + total_closest
+        logger.log(
+            f'{account.email}: meetings sorted by closest to existing' + (
+                '\n\t- ' + '\n\t- '.join(map(str, meetings))
+            ), to_stdout=True
+        )
     return meetings
 
 
@@ -193,25 +227,25 @@ def check_appointment(driver: Driver, event: threading.Event):
             driver.switch_to_tab(0)
             with threading.Lock():
                 driver.set_proxy(next(proxies))
-            logger.log(f'{account.email}: checking appointments')
+            logger.log(f'{account.email}: checking meetings')
             page.refresh()
             page.language = 'en'
             page.matter_option = 'ARI'
             available_meetings = list(page.all_meetings)
             if not available_meetings:
-                logger.log(f'{account.email}: no appointments have appeared')
+                logger.log(f'{account.email}: no meetings have appeared')
                 continue
             settings.RequestTimeout.APPOINTMENT.value = (
                 settings.RequestTimeout.BURST_APPOINTMENT
             )
             logger.log(
-                f'{account.email}: new appointments have appeared' + (
+                f'{account.email}: new meetings have appeared' + (
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
                 ), to_stdout=True
             )
             available_meetings = prepare_meetings(available_meetings, account)
             logger.log(
-                f'{account.email}: appointments after filter and sort' + (
+                f'{account.email}: meetings after filter and sort' + (
                     '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
                 )
             )
@@ -221,7 +255,7 @@ def check_appointment(driver: Driver, event: threading.Event):
                     settings.DISABLE_APPOINTMENT_CHECKS_STATUS
                 ):
                 logger.log(
-                    '{}: inappropriate status for making appointments'.format(
+                    '{}: inappropriate status for making meetings'.format(
                         account.email
                     ), to_stdout=True
                 )
