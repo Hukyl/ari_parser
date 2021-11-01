@@ -66,6 +66,7 @@ def thread_checker(account: dict[str, str], data: dict):
     driver.open_new_tab()
     driver.switch_to_tab(0)
     for dependent in account.dependents:
+        logger.log(f"{account.email}: preparing {dependent.name!r} dependent")
         driver.open_new_tab()
         p = HomePage(driver)
         p.get()
@@ -73,8 +74,15 @@ def thread_checker(account: dict[str, str], data: dict):
         p.click_applicants()
         p = ApplicantsPage(driver)
         p.set_applicant(dependent.name)
-        p.get_applicant_appointment()
-        sleep(2)
+        if p.applicant_status != settings.DISABLE_APPOINTMENT_CHECKS_STATUS:
+            dependent.is_active = True
+            p.get_applicant_appointment()
+            sleep(2)
+        else:
+            dependent.is_active = False
+            logger.log(
+                f"{account.email}: {dependent.name!r} has inappropriate status"
+            )
     else:
         driver.switch_to_tab(0)
     for check in data['checks']:
@@ -297,7 +305,7 @@ def check_appointment(driver: Driver, event: threading.Event):
             for tab_index, dependent in enumerate(
                     sorted(account.dependents, key=lambda x: x.id), start=1
                 ):
-                if dependent.is_signed:
+                if dependent.is_signed or not dependent.is_active:
                     continue
                 available_meetings = prepare_meetings(
                     available_meetings, account
@@ -316,13 +324,13 @@ def check_appointment(driver: Driver, event: threading.Event):
                         continue
                     except Exception as e:
                         logger.log(
-                            f'{account.email}: {dependent.name} '
+                            f'{account.email}: {dependent.name!r} '
                             f'appointment {e.__class__}'
                         )
                     logger.log((
                         '{}: {} was scheduled on {} at "{}" office'
                     ).format(
-                        account.email, dependent.name,
+                        account.email, repr(dependent.name),
                         meeting['datetime'].strftime('%Y-%m-%d %H:%M'),
                         meeting['office']
                     ), to_stdout=True)

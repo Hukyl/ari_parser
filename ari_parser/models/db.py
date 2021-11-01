@@ -5,8 +5,6 @@ from datetime import datetime
 from typing import Union
 import pickle
 
-from datetimerange import DateTimeRange
-
 import settings
 from . import exceptions
 from utils import Singleton, xor
@@ -135,6 +133,7 @@ class AccountDatabase(AbstractDatabase):
                 id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE,
                 owner_id INTEGER,
                 name VARCHAR,
+                is_active BOOLEAN DEFAULT 1,
                 datetime_signed DATETIME DEFAULT NULL,
                 office_signed VARCHAR DEFAULT NULL,
                 FOREIGN KEY (owner_id) REFERENCES accounts(id),
