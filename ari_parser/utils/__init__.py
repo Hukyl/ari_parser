@@ -6,6 +6,15 @@ import collections
 from contextlib import contextmanager
 
 
+def safe_iter(iterable: Iterable, error_value=None):
+    try:
+        while True:
+            yield next(iterable)
+    except StopIteration:
+        while True:
+            yield error_value
+
+
 class Default:
     """
     Usage:

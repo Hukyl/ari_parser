@@ -5,6 +5,7 @@ import threading
 from datetime import datetime, timedelta
 
 from selenium.common import exceptions as selenium_exceptions
+from datetimerange import DateTimeRange
 
 from models.driver import Driver
 from models.page import HomePage, AppointmentPage, ApplicantsPage
@@ -13,7 +14,7 @@ from models.logger import DefaultLogger
 from models import exceptions
 from bot import Bot
 import settings
-from utils import cycle, cleared, FrozenDict
+from utils import cycle, cleared, FrozenDict, safe_iter
 
 
 logger = DefaultLogger()
@@ -118,106 +119,47 @@ def check_status(driver: Driver, event: threading.Event):
         sleep(random.choice(settings.RequestTimeout.STATUS))
 
 
-def prepare_meetings(meetings: dict, account: Account) -> dict:
+def is_valid_meeting(meeting: dict, account: Account) -> bool:
     min_datetime = (datetime.now() + timedelta(
         days=account.updates.day_offset
     )).date()
-    meetings = list(filter(
-        lambda x: (
-            x['office'] not in settings.AppointmentData.BLOCKED_OFFICES
-        ), meetings
-    ))  # filter out inappropriate offices
-    logger.log(
-        f'{account.email}: meetings without blocked offices' + (
-            '\n\t- ' + '\n\t- '.join(map(str, meetings))
-        ), to_stdout=True
-    )
-    meetings = list(filter(
-        lambda x: x['datetime'].date() >= min_datetime, meetings
-    ))  # filter offices that are too close to the present dateetime
-    logger.log(
-        f'{account.email}: meetings filter by day offset' + (
-            '\n\t- ' + '\n\t- '.join(map(str, meetings))
-        ), to_stdout=True
-    )
-    meetings = [
-        x for x in meetings
-        if all(
-            x['datetime'] not in drange 
+    if meeting['datetime'].date() < min_datetime:
+        logger.log(f'Meeting {meeting} is invalid by day offset')
+        return False
+    elif any(
+            meeting['datetime'] in drange 
             for drange in account.updates.unavailability_datetime
-        )
-    ]
-    logger.log(
-        f'{account.email}: meetings without unavailability periods' + (
-            '\n\t- ' + '\n\t- '.join(map(str, meetings))
-        ), to_stdout=True
-    )    
-    if not account.is_signed:
-        if len(meetings) >= (
-                settings.AppointmentData.NUMBER_TO_INCREASE_DAY_OFFSET
-            ):
-            # if the amount of appointments is big, make an offset
-            logger.log(
-                f'{account.email}: a big number of meetings ({len(meetings)})'
-                ' detected, making an offset'
-            )
-            meetings = meetings[len(meetings) // 2:]
-            logger.log(
-                f'{account.email}: resulting meetings' + (
-                    '\n\t- ' + '\n\t- '.join(map(str, meetings))
-                ), to_stdout=True
-            )
-        meetings.sort(key=lambda x: (
-            x['office'] not in settings.AppointmentData.PRIORITY_OFFICES
-        ))
-        logger.log(
-            f'{account.email}: meetings sorted by priority' + (
-                '\n\t- ' + '\n\t- '.join(map(str, meetings))
-            ), to_stdout=True
-        )
+        ):
+        logger.log(f'Meeting {meeting} is in unavailability periods')
+        return False
     else:
         scheduled_meetings = [
             {'datetime': x.datetime_signed, 'office': x.office_signed}
             for x in (account.updates, *account.dependents) 
             if x.datetime_signed is not None 
         ]
-        # filter out meetings that are too close to the existing ones
-        for smeeting in scheduled_meetings:
-            smeeting_start = smeeting['datetime'] - timedelta(
-                hours=settings.AppointmentData.HOUR_OFFICE_OFFSET)
-            smeeting_end = smeeting['datetime'] + timedelta(
-                hours=settings.AppointmentData.HOUR_OFFICE_OFFSET)
-            meetings = list(filter(lambda x: (
-                (
-                    x['datetime'] <= smeeting_start or
-                    x['datetime'] >= smeeting_end
-                ) 
-                if x['office'] != smeeting['office'] else True
-            ), meetings))
-        same_day_meetings = [
-            x for x in meetings if any(
-                x['datetime'].date() == y['datetime'].date()
-                for y in scheduled_meetings
-            )
-        ]
-        for meeting in same_day_meetings:
-            meetings.remove(meeting)
-        closest = [
-            sorted(meetings, key=lambda x: abs(y['datetime'] - x['datetime'])) 
-            for y in same_day_meetings
-        ]
-        total_closest = []
-        for closest_by_index in zip(*closest):
-            for element in closest_by_index:
-                if element not in total_closest:
-                    total_closest.append(element)
-        meetings = same_day_meetings + total_closest
-        logger.log(
-            f'{account.email}: meetings sorted by closest to existing' + (
-                '\n\t- ' + '\n\t- '.join(map(str, meetings))
-            ), to_stdout=True
+        is_valid = all(
+            meeting['datetime'] not in DateTimeRange(
+                smeeting['datetime'] - timedelta(
+                    hours=settings.AppointmentData.HOUR_OFFICE_OFFSET
+                ), smeeting['datetime'] + timedelta(
+                    hours=settings.AppointmentData.HOUR_OFFICE_OFFSET
+                )
+            ) if meeting['office'] != smeeting['office'] else True
+            for smeeting in scheduled_meetings
         )
-    return meetings
+        if is_valid:
+            logger.log(f'Meeting {meeting} is valid')
+        else:
+            logger.log(f"Meeting {meeting} is too close to scheduled meetings")
+        return is_valid
+
+
+def get_safe_meeting(miterator: 'safe_iter', account: Account):
+    while (meeting := next(miterator)):
+        if is_valid_meeting(meeting, account):
+            return meeting
+    return None
 
 
 @bot.notify_errors
@@ -235,27 +177,25 @@ def check_appointment(driver: Driver, event: threading.Event):
             driver.switch_to_tab(0)
             with threading.Lock():
                 driver.set_proxy(next(proxies))
-            logger.log(f'{account.email}: checking meetings')
+            logger.log(f'{account.email}: checking appointments')
             page.refresh()
             page.language = 'en'
             page.matter_option = 'ARI'
-            available_meetings = list(page.all_meetings)
-            if not available_meetings:
-                logger.log(f'{account.email}: no meetings have appeared')
+            offices = list(filter(
+                lambda x: (
+                    x not in settings.AppointmentData.BLOCKED_OFFICES
+                ), page.branch_options
+            ))  # filter out inappropriate offices
+            offices.sort(key=lambda x: (
+                x in settings.AppointmentData.PRIORITY_OFFICES
+            ), reverse=True)
+            meetings_iterator = safe_iter(page.all_meetings(offices=offices))
+            meeting = get_safe_meeting(meetings_iterator, account)
+            if not meeting:
+                logger.log(f'{account.email}: no appointments have appeared')
                 continue
             settings.RequestTimeout.APPOINTMENT.value = (
                 settings.RequestTimeout.BURST_APPOINTMENT
-            )
-            logger.log(
-                f'{account.email}: new meetings have appeared' + (
-                    '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
-                ), to_stdout=True
-            )
-            available_meetings = prepare_meetings(available_meetings, account)
-            logger.log(
-                f'{account.email}: meetings after filter and sort' + (
-                    '\n\t- ' + '\n\t- '.join(map(str, available_meetings))
-                )
             )
             driver.save_snapshot(settings.SNAPSHOTS_PATH)
             driver.save_screenshot(settings.SCREENSHOTS_PATH)
@@ -263,85 +203,85 @@ def check_appointment(driver: Driver, event: threading.Event):
                     settings.DISABLE_APPOINTMENT_CHECKS_STATUS
                 ):
                 logger.log(
-                    '{}: inappropriate status for making meetings'.format(
+                    '{}: inappropriate status for making appointments'.format(
                         account.email
                     ), to_stdout=True
                 )
                 return True
             # Make appointment for main account
             if not account.is_signed:
-                for meeting in available_meetings:
+                while meeting:
                     try:
                         page.refresh()
                         is_success = page.schedule(meeting)
                         # TODO: check if meeting was scheduled successfully
                     except selenium_exceptions.NoSuchElementException:
-                        continue
+                        logger.log(f'Meeting {meeting} is unavailable')
                     except Exception as e:
                         logger.log(
                             f'{account.email}: appointment {e.__class__}'
                         )
-                    logger.log((
-                        '{}: main was scheduled on {} at "{}" office'
-                    ).format(
-                        account.email, 
-                        meeting['datetime'].strftime('%Y-%m-%d %H:%M'),
-                        meeting['office']
-                    ), to_stdout=True)
-                    account.updates.update({
-                        'office_signed': meeting['office'], 
-                        'datetime_signed': meeting['datetime']
-                    })
-                    available_meetings = available_meetings[
-                        available_meetings.index(meeting) + 1:
-                    ]
-                    break
+                    else:
+                        logger.log((
+                            '{}: main was scheduled on {} at "{}" office'
+                        ).format(
+                            account.email, 
+                            meeting['datetime'].strftime('%Y-%m-%d %H:%M'),
+                            meeting['office']
+                        ), to_stdout=True)
+                        account.updates.update({
+                            'office_signed': meeting['office'], 
+                            'datetime_signed': meeting['datetime']
+                        })
+                        break
+                    finally:
+                        meeting = get_safe_meeting(meetings_iterator, account)
                 else:
                     logger.log(
                         f'{account.email}: unable to make an appointment'
                     )
                     continue
-            # Make appointments for depndents
+            # Make appointments for dependents
             for tab_index, dependent in enumerate(
                     sorted(account.dependents, key=lambda x: x.id), start=1
                 ):
                 if dependent.is_signed or not dependent.is_active:
                     continue
-                available_meetings = prepare_meetings(
-                    available_meetings, account
-                )
                 driver.switch_to_tab(tab_index)
                 p = AppointmentPage(driver)
                 p.language = 'en'
                 driver.save_snapshot(settings.SNAPSHOTS_PATH)
                 dependent.add_observer(bot)
-                for meeting in available_meetings:
+                while meeting:
                     try:
                         p.refresh()
                         is_success = p.schedule(meeting)
                         # TODO: check if meeting was scheduled successfully
                     except selenium_exceptions.NoSuchElementException:
-                        continue
+                        logger.log(f'Meeting {meeting} is unavailable')                        
                     except Exception as e:
                         logger.log(
                             f'{account.email}: {dependent.name!r} '
                             f'appointment {e.__class__}'
                         )
-                    logger.log((
-                        '{}: {} was scheduled on {} at "{}" office'
-                    ).format(
-                        account.email, repr(dependent.name),
-                        meeting['datetime'].strftime('%Y-%m-%d %H:%M'),
-                        meeting['office']
-                    ), to_stdout=True)
-                    dependent.update({
-                        'office_signed': meeting['office'], 
-                        'datetime_signed': meeting['datetime']
-                    })
-                    available_meetings = available_meetings[
-                        available_meetings.index(meeting) + 1:
-                    ]
-                    break
+                    else:
+                        logger.log((
+                            '{}: {} was scheduled on {} at "{}" office'
+                        ).format(
+                            account.email, repr(dependent.name),
+                            meeting['datetime'].strftime('%Y-%m-%d %H:%M'),
+                            meeting['office']
+                        ), to_stdout=True)
+                        dependent.update({
+                            'office_signed': meeting['office'], 
+                            'datetime_signed': meeting['datetime']
+                        })
+                        break
+                    finally:
+                        meeting = get_safe_meeting(meetings_iterator, account)
+                else:
+                    # if couldn't make an appointment for any appointment, skip
+                    continue
             sleep(3)
 
 

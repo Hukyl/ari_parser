@@ -147,7 +147,7 @@ class ApplicantsPage(BasePage):
 
     @property
     def applicant_status(self):
-        return self.applicant_status.text
+        return self.applicant_status_span.text
 
 
 class AppointmentPage(BasePage):
@@ -238,9 +238,8 @@ class AppointmentPage(BasePage):
     def day(self, value: str):
         Select(self.day_select).select_by_visible_text(value)
 
-    @property
-    def all_meetings(self):
-        for office in self.branch_options:
+    def all_meetings(self, *, offices: list[str] = None):
+        for office in offices or self.branch_options:
             self.branch_option = office
             for date in self.dates:
                 self.date = date
