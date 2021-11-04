@@ -1,3 +1,5 @@
+import sys
+from os import path
 import random
 import subprocess
 from time import sleep
@@ -8,18 +10,29 @@ from typing import Callable, Iterable
 
 from selenium.common import exceptions as selenium_exceptions
 from datetimerange import DateTimeRange
+from loguru import logger
 
 from models.driver import Driver
 from models.page import HomePage, AppointmentPage, ApplicantsPage
 from models.account import Account, Dependent
-from models.logger import DefaultLogger
 from models import exceptions
 from bot import Bot
 import settings
 from utils import cycle, cleared, waited, FrozenDict, safe_iter, Default
 
 
-logger = DefaultLogger()
+logger.remove(0)
+logger.add(
+    sys.stderr, format=(
+        '[{time:YYYY-MM-DD HH:mm:ss}] [{level}] {extra[email]}: {message}'
+    ), level="DEBUG"
+)
+logger.add(
+    path.join(settings.LOGS_PATH, '{time:YYYY-MM-DD_HH-mm-ss}.log'), 
+    format=(
+        '[{time:YYYY-MM-DD HH:mm:ss}] [{level}] {extra[email]}: {message}'
+    ), level="DEBUG", rotation="00:00"
+)
 proxies = cycle([''] if not settings.PROXIES else random.sample(
     settings.PROXIES, len(settings.PROXIES)
 ))
@@ -29,12 +42,12 @@ bot = Bot()
 
 class Crawler:
     def __init__(self, account_data: FrozenDict, data: dict):
-        self.logger = DefaultLogger()
         self.account = self._create_account(account_data, data)
         self.driver = Driver(self.account)
         self.account.updates.add_observer(bot)
         for dependent in self.account.dependents:
             dependent.updates.add_observer(bot)
+        self.logger = logger.bind(email=self.account.email)
         self.appropriate_status = threading.Event()
         self.access = threading.Event()
         self.access.set()
@@ -49,17 +62,17 @@ class Crawler:
                 'name': settings.AUTH_TOKEN_COOKIE_NAME, 
                 'value': self.account.auth_token,
             })
-            logger.log(f"{self.account.email}: an auth token cookie is used")
+            self.logger.info("an auth token cookie is used")
         if self.account.session_id:
             self.driver.add_cookie({
                 'name': settings.SESSION_ID_COOKIE_NAME, 
                 'value': self.account.session_id,
             })
-            logger.log(f"{self.account.email}: a session id cookie is used")        
+            self.logger.info("a session id cookie is used")        
         try:
             page.get()
         except exceptions.AuthorizationException as e:
-            logger.log(e.args[0], to_stdout=True)
+            self.logger.error(str(e))
             bot.send_error(self.account.email, e)
             return
         self.driver.open_new_tab()  # reserve a tab for status checking
@@ -75,9 +88,8 @@ class Crawler:
             dependent.updates.update(
                 status=p.applicant_status, additional={'to_notify': False}
             )
-            logger.log(
-                f"{self.account.email}: {dependent.name!r} status is"
-                f" {p.applicant_status}"
+            self.logger.debug(
+                f"{dependent.name!r} status is {p.applicant_status}"
             )
         else:
             self.driver.switch_to_tab(0)            
@@ -105,17 +117,22 @@ class Crawler:
         with cleared(self.access):
             self.driver.switch_to_tab(-1)
             self.update_proxy()
-            logger.log(f'{self.account.email}: checking status')
+            self.logger.debug(f'Set proxy to {self.driver.proxy}')
+            self.logger.info('checking status')
             self.driver.get(page.URL)
-            if page.status == settings.DISABLE_APPOINTMENT_CHECKS_STATUS:
+            status = page.status
+            if status == settings.DISABLE_APPOINTMENT_CHECKS_STATUS:
                 self.appropriate_status.clear()  # stop scheduling
+                self.logger.debug(
+                    'Disable appointment checks, inapporpriate status'
+                )
             else:
                 self.appropriate_status.set()
-            if page.status != self.account.updates.status:
+            if status != self.account.updates.status:
                 has_changed = True
-                logger.log(f"{self.account.email}: status changed")
+                self.logger.info("status is {}", status)
                 self.account.updates.update(
-                    status=page.status,
+                    status=status,
                     additional={
                         'image': page.status_screenshot, 
                         'email': self.account.email
@@ -123,7 +140,7 @@ class Crawler:
                 )
                 self.driver.save_snapshot(settings.SNAPSHOTS_PATH)
             else:
-                logger.log(f"{self.account.email}: status has not changed")
+                self.logger.info("status has not changed")
             return has_changed
 
     def schedule_appointments(self):
@@ -154,7 +171,7 @@ class Crawler:
         page = AppointmentPage(self.driver)
         self.driver.switch_to_tab(0)
         self.update_proxy()
-        logger.log(f'{self.account.email}: checking appointments')
+        self.logger.info('checking appointments')
         page.refresh()
         page.language = 'en'
         page.matter_option = 'ARI'
@@ -168,9 +185,10 @@ class Crawler:
         meetings_iterator = safe_iter(
             page.all_meetings(offices=offices)
         )
+        breakpoint()
         meeting = self.get_valid_meeting(meetings_iterator)
         if not meeting:
-            logger.log(f'{self.account.email}: no appointments have appeared')
+            self.logger.info('no appointments have appeared')
             return False
         else:
             # push meeting back to the iterator
@@ -181,13 +199,15 @@ class Crawler:
             days=self.account.day_offset
         )).date()
         if meeting['datetime'].date() < min_datetime:
-            logger.log(f'Meeting {meeting} is invalid by day offset')
+            self.logger.debug(f'Meeting {meeting} is invalid by day offset')
             return False
         elif any(
                 meeting['datetime'] in drange 
                 for drange in self.account.unavailability_datetime
             ):
-            logger.log(f'Meeting {meeting} is in unavailability periods')
+            self.logger.debug(
+                f'Meeting {meeting} is in unavailability periods'
+            )
             return False
         else:
             applicants = [d.updates for d in self.account.dependents] + [
@@ -209,9 +229,9 @@ class Crawler:
                 for smeeting in scheduled_meetings
             )
             if is_valid:
-                logger.log(f'Meeting {meeting} is valid')
+                self.logger.debug(f'Meeting {meeting} is valid')
             else:
-                logger.log(
+                self.logger.debug(
                     f"Meeting {meeting} is too close to scheduled meetings"
                 )
             return is_valid
@@ -225,28 +245,22 @@ class Crawler:
                     is_success = page.schedule(meeting)
                     # TODO: check if meeting was scheduled successfully
                 except selenium_exceptions.NoSuchElementException:
-                    logger.log(f'Meeting {meeting} is unavailable')
+                    self.logger.warning(f'Meeting {meeting} is unavailable')
                 except Exception as e:
-                    logger.log(
-                        f'{self.account.email}: appointment {e.__class__}'
-                    )
+                    self.logger.error("appointment {}", e.__class__)
                 else:
-                    logger.log((
-                        '{}: main was scheduled on {} at "{}" office'
-                    ).format(
-                        self.account.email, 
-                        meeting['datetime'].strftime('%Y-%m-%d %H:%M'),
-                        meeting['office']
-                    ), to_stdout=True)
+                    self.logger.success(
+                        'main was scheduled on {:%Y-%m-%d %H:%M} at '
+                        '{!r} office',
+                        meeting['datetime'], meeting['office']
+                    )
                     self.account.updates.update(
                         office_signed=meeting['office'],
                         datetime_signed=meeting['datetime'],
                         additional={'email': self.account.email}
                     )
                     return is_success
-        logger.log(
-            f'{self.account.email}: unable to make an appointment'
-        )
+        self.logger.warning('unable to make an appointment')
         return False
 
     def _schedule_dependents(self, meetings_iterator: 'safe_iter'):
@@ -267,22 +281,23 @@ class Crawler:
                 try:
                     page.refresh()
                     is_success = page.schedule(meeting)
+                    if not is_success:
+                        raise selenium_exceptions.NoSuchElementException
                     # TODO: check if meeting was scheduled successfully
                 except selenium_exceptions.NoSuchElementException:
-                    logger.log(f'Meeting {meeting} is unavailable')                        
+                    self.logger.warning(f'Meeting {meeting} is unavailable')                        
                 except Exception as e:
-                    logger.log(
-                        f'{self.account.email}: {dependent.name!r} '
-                        f'appointment {e.__class__}'
+                    self.logger.error(
+                        f'{dependent.name!r} appointment {e.__class__}'
                     )
                 else:
-                    logger.log((
-                        '{}: {} was scheduled on {} at "{}" office'
-                    ).format(
-                        self.account.email, repr(dependent.name),
-                        meeting['datetime'].strftime('%Y-%m-%d %H:%M'),
+                    self.logger.success(
+                        '{!r} was scheduled on {:%Y-%m-%d %H:%M} '
+                        'at {!r} office',
+                        dependent.name,
+                        meeting['datetime'],
                         meeting['office']
-                    ), to_stdout=True)
+                    )
                     dependent.updates.update(
                         office_signed=meeting['office'], 
                         datetime_signed=meeting['datetime'],
@@ -306,9 +321,7 @@ class Crawler:
                     func()
                     sleep(random.choice(sleep_time_range.value))
             except Exception as e:
-                logger.log(
-                    f'{self.account.email}: {e.__class__.__name__} occurred'
-                )
+                self.logger.error(f'{e.__class__.__name__} occurred')
                 bot.send_error(self.account.email, e.args[0])
 
         threading.Thread(target=infinite_loop, daemon=True).start()

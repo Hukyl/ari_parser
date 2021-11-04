@@ -5,12 +5,12 @@ import sys
 from typing import Optional, Union
 
 from seleniumwire import webdriver
+from loguru import logger
 
 import settings
 from utils.url import Url
 from .account import Account
 from .page import LoginPage
-from .logger import DefaultLogger
 from .exceptions import InvalidCredentialsException
 
 
@@ -53,6 +53,7 @@ class Driver(webdriver.Chrome):
                 chrome_options.add_argument("--no-sandbox")
                 chrome_options.add_argument('--disable-dev-shm-usage')
         self.account = account
+        self.logger = logger.bind(email=self.account.email)
         super().__init__(
             executable_path=settings.ChromeData.PATH, 
             options=chrome_options,
@@ -89,13 +90,12 @@ class Driver(webdriver.Chrome):
     def get(self, url: Union[Url, str]):
         self.raw_get(url)
         if self.url != url:
-            logger = DefaultLogger()
-            logger.log(f'{self.account.email}: relogging in')
+            self.logger.info('relogging in')
             self.account.auth_token = None
             self.delete_cookie(settings.AUTH_TOKEN_COOKIE_NAME)
             is_successful = self.log_in()
             if not is_successful:
-                logger.log(f'{self.account.email}: unable to log in')
+                self.logger.error('unable to log in')
             self.raw_get(url)
         return True
 
