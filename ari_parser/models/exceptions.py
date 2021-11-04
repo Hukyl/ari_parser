@@ -10,6 +10,14 @@ class AccountDoesNotExistException(DatabaseException):
     pass
 
 
+class DependentAlreadyExistsException(DatabaseException):
+    pass
+
+
+class UpdatesDoNotExistException(DatabaseException):
+    pass
+
+
 class DependentDoesNotExistException(DatabaseException):
     pass
 

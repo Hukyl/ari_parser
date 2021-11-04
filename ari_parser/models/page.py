@@ -53,6 +53,9 @@ class BasePage(ABC):
     def get(self):
         self.driver.get(self.URL)
 
+    def raw_get(self):
+        self.driver.raw_get(self.URL)
+
     @staticmethod
     def select_option(select_webelement, value:str) -> True:
         Select(select_webelement).select_by_visible_text(value)

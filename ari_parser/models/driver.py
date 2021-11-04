@@ -73,21 +73,21 @@ class Driver(webdriver.Chrome):
         page.submit()
         if page.is_invalid_credentials:
             raise InvalidCredentialsException("invalid credentials")
-        if (is_successful := not self.is_redirected_to_login):
-            self.account.auth_token = self.get_cookie(
+        elif (is_successful := not self.is_redirected_to_login):
+            self.account.update(auth_token=self.get_cookie(
                 settings.AUTH_TOKEN_COOKIE_NAME
-            )['value']
-            self.account.session_id = self.get_cookie(
+            )['value'])
+            self.account.update(session_id=self.get_cookie(
                 settings.SESSION_ID_COOKIE_NAME
-            )['value']
+            )['value'])
         return is_successful
 
     @property
     def url(self):
         return Url(self.current_url)
 
-    def safe_get(self, url: Union[Url, str]):
-        self.get(url)
+    def get(self, url: Union[Url, str]):
+        self.raw_get(url)
         if self.url != url:
             logger = DefaultLogger()
             logger.log(f'{self.account.email}: relogging in')
@@ -96,10 +96,10 @@ class Driver(webdriver.Chrome):
             is_successful = self.log_in()
             if not is_successful:
                 logger.log(f'{self.account.email}: unable to log in')
-            self.get(url)
+            self.raw_get(url)
         return True
 
-    def get(self, url: Union[Url, str]):
+    def raw_get(self, url: Union[Url, str]):
         sleep(1)
         if isinstance(url, Url):
             url = url.url

@@ -1,4 +1,4 @@
-from typing import AnyStr, Any
+from typing import Union
 
 from .db import AccountDatabase
 from . import Observable
@@ -8,16 +8,20 @@ class Account:
     _db = AccountDatabase()
 
     def __init__(self, email: str):
-        data = self._db.get_account(email=email)
-        for k, v in data.items():
-            self.__dict__[k] = v
-        self.__dict__['updates'] = Updates(self)
+        for k, v in self._db.get_account(email=email).items():
+            setattr(self, k, v)
+        self.updates = Updates(self.update_id, self)
+        self.__dependents = []
+        del self.update_id
 
     @property
     def dependents(self):
-        return [
-            Dependent(name, self) for name in self._db.get_dependents(self.id)
-        ]
+        if not self.__dependents:
+            self.__dependents = [
+                Dependent(name, self) 
+                for name in self._db.get_dependents(self.id)
+            ]
+        return self.__dependents
 
     @property
     def is_signed(self):
@@ -25,64 +29,70 @@ class Account:
             self.updates.datetime_signed and self.updates.office_signed
         )
 
-    def add_dependent(self, *args, **kwargs):
-        self._db.add_dependent(self.id, *args, **kwargs)
+    def add_dependent(self, name) -> 'Dependent':
+        return Dependent.create(name, self)
 
     @classmethod
-    def create_account(cls, *args, **kwargs):
+    def create(cls, *args, **kwargs):
         cls._db.add_account(*args, **kwargs)
 
     @classmethod
     def exists(cls, **kwargs):
         return cls._db.check_account_exists(**kwargs)
 
-    def __setattr__(self, attr: str, value: Any):
-        self._db.change_account(self.id, **{attr: value})
-        super().__setattr__(attr, value)
+    def update(self, **kwargs):
+        self._db.change_account(self.id, **kwargs)
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+
+class Dependent:
+    _db = AccountDatabase()
+
+    def __init__(self, name: str, owner: Account):
+        self.owner = owner
+        for k, v in self._db.get_dependent(dependent_name=name).items():
+            setattr(self, k, v)
+        self.updates = Updates(self.update_id, self)
+        del self.owner_id, self.update_id
+
+    def update(self, **kwargs):
+        self._db.change_dependent(self.id, **kwargs)
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    @classmethod
+    def exists(cls, name):
+        return cls._db.check_dependent_exists(dependent_name=name)
+
+    @classmethod
+    def create(cls, name: str, owner: Account) -> 'Dependent':
+        cls._db.add_dependent(owner.id, name)
+        return cls(name, owner)
+
+    @property
+    def is_signed(self):
+        return bool(
+            self.updates.datetime_signed and self.updates.office_signed
+        )
 
 
 class Updates(Observable):
     _db = AccountDatabase()
 
-    def __init__(self, owner: Account):
+    def __init__(self, id_: int, owner: Union[Account, Dependent]):
         super().__init__()
-        super().__setattr__('owner', owner)
-        for k, v in self._db.get_updates(owner.id).items():
-            super().__setattr__(k, v)
-        del self.id
+        self.owner = owner
+        for k, v in self._db.get_updates(id_).items():
+            setattr(self, k, v)
 
-    def update(self, attrs: dict[str, Any], *, additional: dict = None):
+    def update(self, *, additional: dict = None, **kwargs):
         if additional is None:
             additional = dict()
         additional.pop('attrs', None)
-        for k, v in attrs.items():
+        additional.setdefault('to_notify', True)
+        self._db.change_update(self.id, **kwargs)
+        for k, v in kwargs.items():
             setattr(self, k, v)
-        self.notify_observers(attrs, additional=additional)
-
-    def __setattr__(self, attr: str, value: AnyStr):
-        self._db.change_update(self.owner.id, **{attr: value})
-        super().__setattr__(attr, value)
-
-
-class Dependent(Observable):
-    _db = AccountDatabase()
-
-    def __init__(self, name: str, owner: Account):
-        super().__init__()
-        self.__dict__['owner'] = owner
-        for k, v in self._db.get_dependent(dependent_name=name).items():
-            self.__dict__[k] = v
-        del self.owner_id
-
-    def __setattr__(self, attr: str, value: Any):
-        self._db.change_dependent(self.id, **{attr: value})
-        super().__setattr__(attr, value)
-
-    def update(self, attrs: dict[str, Any]):
-        for k, v in attrs.items():
-            setattr(self, k, v)
-        self.notify_observers(attrs | {'applicant_name': self.name})
-
-    @property
-    def is_signed(self):
-        return self.datetime_signed and self.office_signed
+        if additional.pop('to_notify'):
+            self.notify_observers(kwargs, additional=additional)

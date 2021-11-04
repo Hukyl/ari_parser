@@ -47,7 +47,9 @@ class Bot(Observer):
 
     @staticmethod
     def update(observable: Observable, attrs: dict, *, additional: dict):
-        message = [f"<b>Email</b>: {observable.owner.email}"]
+        message = [f"<b>Email</b>: {additional['email']}"]
+        if name := additional.get('dependent_name'):
+            message.append(f'<b>Applicant name</b>: {name}')
         for k in sorted(attrs):
             message.append(f"<b>{k.replace('_', ' ').title()}</b>: {attrs[k]}")
         else:
@@ -71,18 +73,6 @@ class Bot(Observer):
         )
         for chat in Chat.get_subscribed():
             _bot.send_message(chat.id, message)
-
-    @staticmethod
-    def notify_errors(func):
-        def inner(driver, *args, **kwargs):
-            if func(driver, *args, **kwargs) is True:
-                return
-            Bot.send_error(driver.account.email, 'crawler error')
-            sleep(30 * 60)
-            if func(driver, *args, **kwargs) is True:
-                return
-            Bot.send_error(driver.account.email, 'crawler error')
-        return inner
 
     def infinity_polling(self):
         _bot.infinity_polling()

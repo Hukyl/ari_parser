@@ -89,6 +89,12 @@ def cleared(event: Event):
         event.set()
 
 
+@contextmanager
+def waited(event: Event):
+    event.wait()
+    yield
+
+
 class FrozenDict(collections.Mapping):
     """Don't forget the docstrings!!"""
 
