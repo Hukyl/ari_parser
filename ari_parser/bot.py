@@ -1,6 +1,8 @@
 import logging
+from typing import Any
 
 from telebot import TeleBot, logger
+from telebot.types import Message
 
 import settings
 from models.chat import Chat
@@ -14,20 +16,20 @@ _bot = TeleBot(settings.BOT_TOKEN, parse_mode='html')
 
 class Bot(Observer):
     @_bot.message_handler(commands=['start'])
-    def greet(msg):
+    def greet(msg: Message) -> None:
         _bot.send_message(
             msg.chat.id, f"Hello, {msg.from_user.first_name}!"
         )
 
     @_bot.message_handler(commands=['help'])
-    def send_help(msg):
+    def send_help(msg: Message) -> None:
         _bot.send_message(
             msg.chat.id, 
             "/subscribe - subscribe to updates\n/unsubscribe - unsubscribe"
         )
 
     @_bot.message_handler(commands=['subscribe'])
-    def subscribe(msg):
+    def subscribe(msg: Message) -> None:
         chat = Chat(msg.chat.id)
         if chat.is_subscribed:
             _bot.reply_to(msg, "You are already subscribed!")
@@ -36,7 +38,7 @@ class Bot(Observer):
             _bot.reply_to(msg, "You have subscribed!")
 
     @_bot.message_handler(commands=['unsubscribe'])
-    def unsubscribe(msg):
+    def unsubscribe(msg: Message) -> None:
         chat = Chat(msg.chat.id)
         if not chat.is_subscribed:
             _bot.reply_to(msg, "You are already unsubscribed!")
@@ -45,7 +47,10 @@ class Bot(Observer):
             _bot.reply_to(msg, "You have unsubscribed!")
 
     @staticmethod
-    def update(observable: Observable, attrs: dict, *, additional: dict):
+    def update(
+                observable: Observable, attrs: dict[str, Any], 
+                *, additional: dict[str, Any]
+            ) -> None:
         message = [f"<b>Email</b>: {additional['email']}"]
         if name := additional.get('dependent_name'):
             message.append(f'<b>Applicant name</b>: {name}')
@@ -60,20 +65,20 @@ class Bot(Observer):
                 _bot.send_message(chat.id, message)
 
     @staticmethod
-    def send_message(email: str, message: str):
+    def send_message(email: str, message: str) -> None:
         message = f"<b>Email</b>: {email}\n<b>Message</b>: {message}"
         for chat in Chat.get_subscribed():
             _bot.send_message(chat.id, message)
 
     @staticmethod
-    def send_error(email:str, message: str):
+    def send_error(email: str, message: str) -> None:
         message = (
             f'<b>Error</b>\n<b>Email</b>: {email}\n<b>Message</b>: {message}'
         )
         for chat in Chat.get_subscribed():
             _bot.send_message(chat.id, message)
 
-    def infinity_polling(self):
+    def infinity_polling(self) -> None:
         _bot.infinity_polling()
 
 

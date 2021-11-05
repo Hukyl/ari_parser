@@ -44,7 +44,7 @@ class BasePage(ABC):
         Select(self.language_select).select_by_value(lang_code)
         return True
 
-    def enter_input(self, webelement, value:str) -> True:
+    def enter_input(self, webelement, value: str) -> True:
         for symbol in value.strip():
             sleep(0.1)
             webelement.send_keys(symbol)
@@ -57,7 +57,7 @@ class BasePage(ABC):
         self.driver.raw_get(self.URL)
 
     @staticmethod
-    def select_option(select_webelement, value:str) -> True:
+    def select_option(select_webelement, value: str) -> True:
         Select(select_webelement).select_by_visible_text(value)
         return True
 
@@ -254,7 +254,6 @@ class AppointmentPage(BasePage):
                             date.replace(day=int(day)).date(), 
                             datetime.strptime(time, '%H:%M').time()
                         ), 'office': office}
-                
 
     def submit(self):
         self.submit_button.click()

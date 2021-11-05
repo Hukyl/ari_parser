@@ -4,7 +4,7 @@ from typing import Any
 
 class Observable(ABC):
     def __init__(self):
-        super().__setattr__('observers', [])
+        self.observers = []
 
     def add_observer(self, obs: 'Observer'):
         self.observers.append(obs)
@@ -12,16 +12,16 @@ class Observable(ABC):
     def remove_observer(self, obs: 'Observer'):
         self.observers.remove(obs)
 
-    def notify_observers(self, attrs: dict, *, additional: dict = None):
+    def notify_observers(self, *, additional: dict = None, **kwargs):
         if additional is None:
             additional = dict()
         for observer in self.observers:
-            observer.update(self, attrs, additional=additional)
+            observer.update(self, kwargs, additional=additional)
 
 
 class Observer(ABC):
     def update(
-            self, observable: Observable, attrs: dict[str, Any], 
-            *, additional: dict[str, Any]
-        ):
+                self, observable: Observable, attrs: dict[str, Any], 
+                *, additional: dict[str, Any]
+            ):
         pass

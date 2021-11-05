@@ -39,7 +39,6 @@ proxies = cycle([''] if not settings.PROXIES else random.sample(
 bot = Bot()
 
 
-
 class Crawler:
     def __init__(self, account_data: FrozenDict, data: dict):
         self.account = self._create_account(account_data, data)
@@ -202,9 +201,9 @@ class Crawler:
             self.logger.debug(f'Meeting {meeting} is invalid by day offset')
             return False
         elif any(
-                meeting['datetime'] in drange 
-                for drange in self.account.unavailability_datetime
-            ):
+                    meeting['datetime'] in drange 
+                    for drange in self.account.unavailability_datetime
+                ):
             self.logger.debug(
                 f'Meeting {meeting} is in unavailability periods'
             )
@@ -266,11 +265,12 @@ class Crawler:
     def _schedule_dependents(self, meetings_iterator: 'safe_iter'):
         p = ApplicantsPage(self.driver)
         for tab_index, dependent in enumerate(
-                sorted(self.account.dependents, key=lambda x: x.id), start=1
-            ):
-            if dependent.is_signed or dependent.updates.status == (
-                    settings.DISABLE_APPOINTMENT_CHECKS_STATUS
+                    sorted(self.account.dependents, key=lambda x: x.id), 
+                    start=1
                 ):
+            if dependent.is_signed or dependent.updates.status == (
+                        settings.DISABLE_APPOINTMENT_CHECKS_STATUS
+                    ):
                 continue
             self.driver.switch_to_tab(tab_index)
             p.get_applicant_appointment()
@@ -313,8 +313,8 @@ class Crawler:
         return True
 
     def _create_thread(
-            self, func: Callable[[], bool], sleep_time_range: Default
-        ):
+                self, func: Callable[[], bool], sleep_time_range: Default
+            ):
         def infinite_loop():
             try:
                 while True:

@@ -1,45 +1,64 @@
 from functools import wraps
 import re
-from typing import Iterable
-from threading import Event
+from typing import Iterable, TypeVar, Union, Callable
+import threading
 import collections
 from contextlib import contextmanager
 
+T = TypeVar('T')
+S = TypeVar('S')
 
-def safe_iter(iterable: Iterable, error_value=None):
+
+def safe_iter(iterable: Iterable[T], default_value: S = None) -> Union[T, S]:
+    """
+    Iterator over the itetable and yield error_value infinitely
+    
+    Args:
+        iterable (Iterable[T])
+        default_value (S, optional): will be yielded after end of iterable
+    
+    Yields:
+        Union[T, S]: T if it is from iterable else S
+    """
     try:
         while True:
             yield next(iterable)
     except StopIteration:
         while True:
-            yield error_value
+            yield default_value
 
 
 class Default:
     """
     Usage:
-    ```
-    >>> d = Default(3, stash_count=2)
-    >>> d.value
-    3
-    >>> d.value = 5
-    >>> d.value
-    5
-    >>> d.value
-    5
-    >>> d.value
-    3
-    ```
+        ```
+        >>> d = Default(3, stash_count=2)
+        >>> d.value
+        3
+        >>> d.value = 5
+        >>> d.value
+        5
+        >>> d.value
+        5
+        >>> d.value
+        3
+        ```
+    
+    Attributes:
+        default_stash_count (int): total 
+        default_value (T): default value
+        stash_count (int): current appeal times set variable will be available
+        value (T): current value
     """
 
-    def __init__(self, default_value, *, stash_count: int = 5):
+    def __init__(self, default_value: T, *, stash_count: int = 5):
         self.default_value = default_value
         self.default_stash_count = stash_count
         self.__stash_count = None
         self.__value = None
 
     @property
-    def value(self):
+    def value(self) -> T:
         if self.__value:
             self.stash_count -= 1
             if self.stash_count <= 0:
@@ -48,21 +67,27 @@ class Default:
         return self.__value or self.default_value
 
     @value.setter
-    def value(self, value):
+    def value(self, value: T):
         self.__value = value
         self.stash_count = self.default_stash_count    
 
 
-def xor(parameters: list):
+def xor(parameters: list[str]):
     """
-    Accept only one of given parameters
-
-    Works only with keyword-only parameters
+    Accept only one of given parameters.
+    Used as a decorator.
+    Works only with keyword-only parameters.
+    
+    Args:
+        parameters (list[str]): parameters to be checked
+    
+    Returns:
+        T: Same type as decorated function
     """
 
-    def outer(func):
+    def outer(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
-        def inner(*args, **kwargs):
+        def inner(*args, **kwargs) -> T:
             entries = len([x for x in parameters if x in kwargs])
             if entries == 0:
                 raise ValueError(
@@ -78,9 +103,18 @@ def xor(parameters: list):
     return outer
 
 
-
 @contextmanager
-def cleared(event: Event):
+def cleared(event: threading.Event) -> None:
+    """
+    Wait until event is set, and block it until end of code block.
+    Used as as context manager
+    
+    Args:
+        event (threading.Event): event to be cleared
+    
+    Yields:
+        None: Description
+    """
     event.wait()
     event.clear()
     try:
@@ -90,13 +124,27 @@ def cleared(event: Event):
 
 
 @contextmanager
-def waited(event: Event):
+def waited(event: threading.Event) -> None:
+    """
+    Wait until the event is set to True and continue execution.
+    Used as a context manager
+    
+    Args:
+        event (threading.Event): event to be waited
+    
+    Yields:
+        None: ...
+    
+    """
     event.wait()
     yield
 
 
 class FrozenDict(collections.Mapping):
-    """Don't forget the docstrings!!"""
+    """
+    Immutable dict.
+    Can be hashed and used in usual dict keys
+    """
 
     def __init__(self, *args, **kwargs):
         self._d = dict(*args, **kwargs)
@@ -132,7 +180,16 @@ class FrozenDict(collections.Mapping):
         return self._hash
 
 
-def cycle(iterable: Iterable):
+def cycle(iterable: Iterable[T], /) -> T:
+    """
+    Iterate infinitely across items in iterable
+    
+    Args:
+        iterable (Iterable[T]): iterable to be iterated through
+    
+    Yields:
+        T: item in iterable
+    """
     while True:
         for x in iterable:
             yield x

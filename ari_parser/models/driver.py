@@ -19,7 +19,7 @@ class Driver(webdriver.Chrome):
 
     def __init__(
             self, account: Account,
-            *, headless:Optional[bool]=settings.ChromeData.HEADLESS
+            *, headless: Optional[bool] = settings.ChromeData.HEADLESS
             ):
         """
         Create a Chrome webdriver
@@ -63,10 +63,27 @@ class Driver(webdriver.Chrome):
         self.tabs = self.window_handles[:]
 
     @property
-    def is_redirected_to_login(self):
+    def is_redirected_to_login(self) -> bool:
+        """
+        Check if current driver url is equal to login page's url.
+        
+        Returns:
+            bool
+        """
         return self.url == LoginPage.URL
 
-    def log_in(self):
+    def log_in(self) -> bool:
+        """
+        Log in with `self.account`
+        
+        Returns:
+            None
+        
+        Raises:
+            InvalidCredentialsException: Description
+        """
+        # TODO: Relocate setting the cookies to outer scope
+        # TODO: Remove account from driver 
         page = LoginPage(self)
         self.get(page.URL)
         page.email = self.account.email
@@ -84,10 +101,20 @@ class Driver(webdriver.Chrome):
         return is_successful
 
     @property
-    def url(self):
+    def url(self) -> Url:
         return Url(self.current_url)
 
-    def get(self, url: Union[Url, str]):
+    def get(self, url: Union[Url, str]) -> True:
+        """
+        Get url safely. 
+        If redirected to login page, relogin and get the needed url again.
+        
+        Args:
+            url (Union[Url, str]): url to get
+        
+        Returns:
+            True
+        """
         self.raw_get(url)
         if self.url != url:
             self.logger.info('relogging in')
@@ -99,13 +126,36 @@ class Driver(webdriver.Chrome):
             self.raw_get(url)
         return True
 
-    def raw_get(self, url: Union[Url, str]):
-        sleep(1)
+    def raw_get(self, url: Union[Url, str]) -> None:
+        """
+        Just get the needed url
+        
+        Args:
+            url (Union[Url, str])
+        
+        Returns:
+            None
+        """
         if isinstance(url, Url):
             url = url.url
         return super().get(url)
 
-    def set_proxy(self, proxy:str):
+    def set_proxy(self, proxy: Union[str, None]) -> True:
+        """
+        Set proxy for the driver.
+        If no proxy is passed, proxy is removed.
+        Proxy with authentication are supported.
+        Supported proxy types are HTTP(S), SOCKS4 and SOCKS5
+        
+        Args:
+            proxy (Union[str, None]): proxy to be set
+        
+        Returns:
+            True
+        
+        Raises:
+            ValueError: invalid proxy type
+        """
         proxies = {'no_proxy': self.NO_PROXY_IP}
         if not proxy:
             pass
@@ -118,17 +168,33 @@ class Driver(webdriver.Chrome):
         self.proxy = proxies
         return True
 
-    def save_snapshot(self, dirname: str):
+    def save_snapshot(self, dirname: Optional[str] = '') -> None:
+        """
+        Save page source as html-file to specified directory.
+        
+        Args:
+            dirname (Optional[str], optional): Directory to save to
+        """
+        if not dirname:
+            dirname = ''
         os.makedirs(dirname, exist_ok=True)
         now = datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
         with open(
-            os.path.join(
-                dirname, 
-                f"{now}__{self.account.email}__{self.url.rsplit()[1]}.html"
-            ), 'w', encoding='utf-8') as file:
+                os.path.join(
+                    dirname, 
+                    f"{now}__{self.account.email}__{self.url.rsplit()[1]}.html"
+                ), 'w', encoding='utf-8') as file:
             file.write(self.page_source)
 
-    def save_screenshot(self, dirname: str):
+    def save_screenshot(self, dirname: Optional[str] = '') -> None:
+        """
+        Save screenshot of current tab to specified directory.
+
+        Args:
+            dirname (Optional[str], optional): Directory to save to
+        """
+        if not dirname:
+            dirname = ''        
         os.makedirs(dirname, exist_ok=True)
         now = datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
         filename = os.path.join(
@@ -137,7 +203,13 @@ class Driver(webdriver.Chrome):
         )
         super().save_screenshot(filename)
 
-    def open_new_tab(self):
+    def open_new_tab(self) -> True:
+        """
+        Open to tab and switch to it.
+        
+        Returns:
+            True
+        """
         self.execute_script("window.open('', '_blank')")
         tab_name = (set(self.window_handles) - set(self.tabs)).pop()
         index = self.tabs.index(self.current_window_handle) + 1
@@ -145,14 +217,29 @@ class Driver(webdriver.Chrome):
         self.switch_to_tab(index)
         return True
 
-    def close_tab(self):
+    def close_tab(self) -> True:
+        """
+        Close current tab and switch to the very first tab.
+        
+        Returns:
+            True
+        """
         tab_name = self.current_window_handle
         self.execute_script('window.close();')
         self.tabs.remove(tab_name)
         self.switch_to_tab(0)
         return True
 
-    def switch_to_tab(self, index:int, /):
+    def switch_to_tab(self, index: int) -> True:
+        """
+        Switch ot tab by indexing the list of tabs
+        
+        Args:
+            index (int): tab index in list, 0-based
+        
+        Returns:
+            True
+        """
         tab_name = self.tabs[index]
         self.switch_to_window(tab_name)
         return True
