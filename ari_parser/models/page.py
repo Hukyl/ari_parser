@@ -51,10 +51,15 @@ class BasePage(ABC):
         return True
 
     def get(self):
+        sleep(1)
         self.driver.get(self.URL)
 
     def raw_get(self):
         self.driver.raw_get(self.URL)
+
+    @property
+    def reached(self) -> bool:
+        return self.driver.url == self.URL
 
     @staticmethod
     def select_option(select_webelement, value: str) -> True:

@@ -146,7 +146,9 @@ class Crawler:
         page = HomePage(self.driver)
         with waited(self.appropriate_status), cleared(self.access):
             self.driver.switch_to_tab(0)
-            page.click_calendar()
+            if page.reached:
+                page.get()
+                page.click_calendar()
             iterator = self._check_new_appointments()
             if not iterator:
                 return
@@ -184,7 +186,6 @@ class Crawler:
         meetings_iterator = safe_iter(
             page.all_meetings(offices=offices)
         )
-        breakpoint()
         meeting = self.get_valid_meeting(meetings_iterator)
         if not meeting:
             self.logger.info('no appointments have appeared')
@@ -259,8 +260,9 @@ class Crawler:
                         additional={'email': self.account.email}
                     )
                     return is_success
-        self.logger.warning('unable to make an appointment')
-        return False
+            self.logger.warning('unable to make an appointment')
+            return False
+        return True
 
     def _schedule_dependents(self, meetings_iterator: 'safe_iter'):
         p = ApplicantsPage(self.driver)
@@ -344,9 +346,12 @@ class Crawler:
 
 
 def main():
-    for account, data in settings.ACCOUNTS.items():
-        Crawler(account, data).start(checks=data['checks'])
     print("Parser started")
+    crawlers = []
+    for account, data in settings.ACCOUNTS.items():
+        crawler = Crawler(account, data)
+        crawlers.append(crawler)
+        crawler.start(checks=data['checks'])
     bot.infinity_polling()
     print("Shutting down the parser")
     # Kill all instances of driver

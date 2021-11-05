@@ -1,5 +1,4 @@
 from datetime import datetime
-from time import sleep
 import os
 import sys
 from typing import Optional, Union

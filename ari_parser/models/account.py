@@ -11,7 +11,9 @@ class Account:
         for k, v in self._db.get_account(email=email).items():
             setattr(self, k, v)
         self.updates = Updates(self.update_id, self)
-        self.dependents = []
+        self.dependents = [
+            Dependent(name, self) for name in self._db.get_dependents(self.id)
+        ]
         del self.update_id
 
     @property
@@ -57,6 +59,14 @@ class Account:
         self._db.change_account(self.id, **kwargs)
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+    def __str__(self) -> str:
+        email = self.email
+        password = self.password
+        return f"{self.__class__.__name__}({email=}, {password=})"
+
+    def __repr__(self) -> str:
+        return f"<{str(self)} at {hex(id(self)).upper()}>"
 
 
 class Dependent:
@@ -120,6 +130,14 @@ class Dependent:
             self.updates.datetime_signed and self.updates.office_signed
         )
 
+    def __str__(self) -> str:
+        owner = self.owner
+        name = self.name
+        return f"{self.__class__.__name__}({name=}, {owner.email=})"
+
+    def __repr__(self) -> str:
+        return f"<{str(self)} at {hex(id(self)).upper()}>"
+
 
 class Updates(Observable):
     _db = AccountDatabase()
@@ -154,3 +172,10 @@ class Updates(Observable):
             setattr(self, k, v)
         if additional.pop('to_notify'):
             self.notify_observers(kwargs, additional=additional)
+
+    def __str__(self) -> str:
+        owner = self.owner
+        return f"{self.__class__.__name__}({owner=!s})"
+
+    def __repr__(self) -> str:
+        return f"<{str(self)} at {hex(id(self)).upper()}>"
