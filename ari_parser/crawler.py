@@ -146,9 +146,8 @@ class Crawler:
         page = HomePage(self.driver)
         with waited(self.appropriate_status), cleared(self.access):
             self.driver.switch_to_tab(0)
-            if page.reached:
-                page.get()
-                page.click_calendar()
+            page.get()
+            page.click_calendar()
             iterator = self._check_new_appointments()
             if not iterator:
                 return
@@ -243,7 +242,8 @@ class Crawler:
                 page.refresh()
                 try:
                     is_success = page.schedule(meeting)
-                    # TODO: check if meeting was scheduled successfully
+                    if not is_success:
+                        raise selenium_exceptions.NoSuchElementException
                 except selenium_exceptions.NoSuchElementException:
                     self.logger.warning(f'Meeting {meeting} is unavailable')
                 except Exception as e:
@@ -285,7 +285,6 @@ class Crawler:
                     is_success = page.schedule(meeting)
                     if not is_success:
                         raise selenium_exceptions.NoSuchElementException
-                    # TODO: check if meeting was scheduled successfully
                 except selenium_exceptions.NoSuchElementException:
                     self.logger.warning(f'Meeting {meeting} is unavailable')                        
                 except Exception as e:

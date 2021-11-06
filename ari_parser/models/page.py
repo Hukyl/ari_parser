@@ -169,7 +169,14 @@ class AppointmentPage(BasePage):
         self.day = str(data['datetime'].day)
         self.time = data['datetime'].strftime('%H:%M')
         self.submit()
-        return True
+        try:
+            self.matter_option and self.branch_option and self.date
+        except exceptions.TimeoutException:
+            # if no such element are present on the page,
+            # then we got to another page and scheduling succeeded
+            return True
+        else:
+            return False
 
     @property
     def matter_option(self):
