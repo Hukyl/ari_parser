@@ -9,7 +9,7 @@ from selenium.webdriver.support.select import Select
 from selenium.common import exceptions
 
 from utils.url import Url
-from settings import locators
+from settings import locators, BASE_URL
 
 
 class BasePage(ABC):
@@ -17,8 +17,7 @@ class BasePage(ABC):
     Base class to initialize the base page that will be called from all
     pages
     """
-    # URL = Url("https://ari.sef.pt/")
-    URL = Url("http://127.0.0.1/")
+    URL = Url(BASE_URL)
     LOCATORS = locators.BasePageLocators
 
     def __init__(self, driver):
