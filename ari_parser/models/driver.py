@@ -40,6 +40,7 @@ class Driver(webdriver.Chrome):
         chrome_options.add_experimental_option(
             "excludeSwitches", ["enable-logging"]
         )
+        chrome_options.add_argument("--remote-debugging-port=9222")
         service_log_path = os.devnull if sys.platform == 'linux' else 'NUL'
         seleniumwire_options = {'proxy': {'no_proxy': self.NO_PROXY_IP}}
         if headless:
