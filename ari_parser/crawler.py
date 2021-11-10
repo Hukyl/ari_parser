@@ -1,25 +1,24 @@
-import sys
-from os import path
 import random
 import subprocess
-from time import sleep
+import sys
 import threading
 from datetime import datetime, timedelta
 from itertools import chain
-from typing import Callable, Iterable
+from os import path
+from time import sleep
+from typing import Callable, Iterable, Union
 
-from selenium.common import exceptions as selenium_exceptions
 from datetimerange import DateTimeRange
 from loguru import logger
+from selenium.common import exceptions as selenium_exceptions
 
+import settings
+from bot import Bot
+from models import exceptions
+from models.account import Account, Dependent
 from models.driver import Driver
 from models.page import HomePage, AppointmentPage, ApplicantsPage
-from models.account import Account, Dependent
-from models import exceptions
-from bot import Bot
-import settings
 from utils import cycle, cleared, waited, FrozenDict, safe_iter, Default
-
 
 logger.remove(0)
 logger.add(
@@ -73,7 +72,7 @@ class Crawler:
             page.get()
         except exceptions.AuthorizationException as e:
             self.logger.error(str(e))
-            bot.send_error(self.account.email, e)
+            bot.send_error(self.account.email, str(e))
             raise e from None
         self.driver.open_new_tab()  # reserve a tab for status checking
         self.driver.switch_to_tab(0)
@@ -179,7 +178,7 @@ class Crawler:
                 return meeting
         return False
 
-    def _check_new_appointments(self) -> chain:
+    def _check_new_appointments(self) -> Union[chain, bool]:
         page = AppointmentPage(self.driver)
         self.driver.switch_to_tab(0)
         self.update_proxy()
@@ -363,7 +362,7 @@ class Crawler:
 
 
 def main():
-    print("Parser started")
+    logger.info("Parser started", email='\b')
     crawlers = []
     for account, data in settings.ACCOUNTS.items():
         try:
@@ -374,7 +373,7 @@ def main():
             crawlers.append(crawler)
             crawler.start(checks=data['checks'])
     bot.infinity_polling()
-    print("Shutting down the parser")
+    logger.info("Shutting down the parser", email="\b")
     # Kill all instances of driver
     if crawlers:
         subprocess.call(

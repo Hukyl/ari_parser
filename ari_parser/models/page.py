@@ -1,15 +1,15 @@
 from abc import ABC
-from time import sleep
 from datetime import datetime
+from time import sleep
 from typing import Union
 
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common import exceptions
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.select import Select
-from selenium.common import exceptions
+from selenium.webdriver.support.ui import WebDriverWait
 
-from utils.url import Url
 from settings import locators, BASE_URL
+from utils.url import Url
 
 
 class BasePage(ABC):
@@ -41,9 +41,9 @@ class BasePage(ABC):
     @language.setter
     def language(self, lang_code: str):
         Select(self.language_select).select_by_value(lang_code)
-        return True
 
-    def enter_input(self, webelement, value: str) -> True:
+    @staticmethod
+    def enter_input(webelement, value: str) -> True:
         for symbol in value.strip():
             sleep(0.1)
             webelement.send_keys(symbol)
@@ -161,7 +161,7 @@ class AppointmentPage(BasePage):
     URL = BasePage.URL / 'ARIAgenda.aspx'
     LOCATORS = locators.AppointmentPageLocators
 
-    def schedule(self, data: dict[str, Union[datetime, str]]) -> dict:
+    def schedule(self, data: dict[str, Union[datetime, str]]) -> bool:
         self.matter_option = 'ARI'
         self.branch_option = data['office']
         self.date = data['datetime'].strftime('%Y - %B')
@@ -169,7 +169,7 @@ class AppointmentPage(BasePage):
         self.time = data['datetime'].strftime('%H:%M')
         self.submit()
         try:
-            self.matter_option and self.branch_option and self.date
+            _ = self.matter_option and self.branch_option and self.date
         except exceptions.TimeoutException:
             # if no such element are present on the page,
             # then we got to another page and scheduling succeeded

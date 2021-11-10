@@ -1,20 +1,25 @@
 from typing import Union
 
-from .db import AccountDatabase
 from . import Observable
+from .db import AccountDatabase
 
 
 class Account:
     _db = AccountDatabase()
 
     def __init__(self, email: str):
-        for k, v in self._db.get_account(email=email).items():
-            setattr(self, k, v)
-        self.updates = Updates(self.update_id, self)
+        data = self._db.get_account(email=email)
+        self.id = data['id']
+        self.email = email
+        self.password = data['password']
+        self.auth_token = data['auth_token']
+        self.session_id = data['session_id']
+        self.day_offset = data['day_offset']
+        self.unavailability_datetime = data['unavailability_datetime']
+        self.updates = Updates(data['update_id'], self)
         self.dependents = [
             Dependent(name, self) for name in self._db.get_dependents(self.id)
         ]
-        del self.update_id
 
     @property
     def is_signed(self) -> bool:
@@ -73,11 +78,12 @@ class Dependent:
     _db = AccountDatabase()
 
     def __init__(self, name: str, owner: Account):
+        data = self._db.get_dependent(dependent_name=name)
+        self.id = data['id']
+        assert data['owner_id'] == owner.id
         self.owner = owner
-        for k, v in self._db.get_dependent(dependent_name=name).items():
-            setattr(self, k, v)
-        self.updates = Updates(self.update_id, self)
-        del self.owner_id, self.update_id
+        self.name = data['name']
+        self.updates = Updates(data['update_id'], self)
 
     def update(self, **kwargs) -> None:
         """
@@ -145,8 +151,11 @@ class Updates(Observable):
     def __init__(self, id_: int, owner: Union[Account, Dependent]):
         super().__init__()
         self.owner = owner
-        for k, v in self._db.get_updates(id_).items():
-            setattr(self, k, v)
+        data = self._db.get_updates(id_)
+        self.id = data['id']
+        self.status = data['status']
+        self.datetime_signed = data['datetime_signed']
+        self.office_signed = data['office_signed']
 
     def update(self, *, additional: dict = None, **kwargs) -> None:
         """

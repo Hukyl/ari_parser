@@ -24,14 +24,12 @@ class HomePageLocators(BasePageLocators):
     APPLICANTS_BUTTON = (By.CSS_SELECTOR, '#Conteudo_btnAF')
 
 
-
 class ApplicantsPageLocators(BasePageLocators):
     TABLE = (By.CSS_SELECTOR, 'table#Conteudo_dg > tbody')
     APPLICANT_CALENDAR_BUTTON = (
         By.CSS_SELECTOR, '#Conteudo_btnAgendamento'
     )
     APPLICANT_STATUS_SPAN = (By.CSS_SELECTOR, "span#Conteudo_txtSituacao")
-
 
 
 class AppointmentPageLocators(BasePageLocators):

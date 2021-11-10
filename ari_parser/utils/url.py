@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from urllib.parse import urlparse
 from typing import Union
+from urllib.parse import urlparse
 
 
 @dataclass(eq=False)
@@ -27,13 +27,13 @@ class Url(object):
         return self.decode_params(self.url[self.url.rfind('?'):])
 
     @params.setter
-    def params(self, params:dict[str, Union[str, list[str]]]):
+    def params(self, params: dict[str, Union[str, list[str]]]):
         if not params:
             self.url = self.path
         self.url = f'{self.path}{self.encode_params(params)}'
 
     @staticmethod
-    def decode_params(params_str:str):
+    def decode_params(params_str: str):
         result = {}
         for param in params_str.lstrip('?').split('&'):
             k, v = param.split('=', maxsplit=1)
@@ -47,7 +47,7 @@ class Url(object):
         return result
 
     @staticmethod
-    def encode_params(params:dict[str, Union[str, list[str]]]):
+    def encode_params(params: dict[str, Union[str, list[str]]]):
         result_str = '?'
         for k, v in params.items():
             if isinstance(v, list):
@@ -59,15 +59,15 @@ class Url(object):
 
     @property
     def parent(self):
-        return self.__class__(self.url.rsplit('/', maxsplit=1)[0])
+        return Url(self.url.rsplit('/', maxsplit=1)[0])
 
-    def __truediv__(self, other:Union[str, dict]) -> 'Url':
+    def __truediv__(self, other: Union[str, dict]) -> 'Url':
         if isinstance(other, dict):
-            return self.__class__(f"{self.url}/{self.encode_params(other)}")
-        return self.__class__(f"{self.url}/{other}")
+            return Url(f"{self.url}/{self.encode_params(other)}")
+        return Url(f"{self.url}/{other}")
 
     def __copy__(self):
-        return self.__class__(self.url)
+        return Url(self.url)
 
     def rsplit(self):
         return self.parent, self.path.rsplit('/', maxsplit=1)[1]
@@ -76,18 +76,17 @@ class Url(object):
         if isinstance(other, self.__class__):
             return self.path == other.path
         elif isinstance(other, str):
-            other = self.__class__(other)
-            return self == other
+            return self == Url(other)
         else:
             return False
 
     def __add__(self, other: Union[str, dict]) -> 'Url':
         if isinstance(other, dict):
-            return self.__class__(f"{self.url}{self.encode_params(other)}")
-        return self.__class__(f"{self.url}{other}")
+            return Url(f"{self.url}{self.encode_params(other)}")
+        return Url(f"{self.url}{other}")
 
     def __str__(self):
         return self.url
 
     def format(self, *args, **kwargs):
-        return self.__class__(self.url.format(*args, **kwargs))
+        return Url(self.url.format(*args, **kwargs))

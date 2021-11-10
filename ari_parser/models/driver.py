@@ -1,16 +1,16 @@
-from datetime import datetime
 import os
 import sys
+from datetime import datetime
 from typing import Optional, Union
 
-from seleniumwire import webdriver
 from loguru import logger
+from seleniumwire import webdriver
 
+from .account import Account
+from .exceptions import InvalidCredentialsException, AuthorizationException
+from .page import LoginPage
 import settings
 from utils.url import Url
-from .account import Account
-from .page import LoginPage
-from .exceptions import InvalidCredentialsException, AuthorizationException
 
 
 class Driver(webdriver.Chrome):
@@ -109,7 +109,7 @@ class Driver(webdriver.Chrome):
     def get(self, url: Union[Url, str]) -> bool:
         """
         Get url safely. 
-        If redirected to login page, relogin and get the needed url again.
+        If redirected to login page, re-login and get the needed url again.
         
         Args:
             url (Union[Url, str]): url to get
@@ -244,7 +244,7 @@ class Driver(webdriver.Chrome):
             True
         """
         tab_name = self.tabs[index]
-        self.switch_to_window(tab_name)
+        self.switch_to.window(tab_name)
         return True
 
     def __del__(self):

@@ -1,27 +1,29 @@
 import logging
 from typing import Any
 
-from telebot import TeleBot, logger
+from telebot import TeleBot, logger as telebot_logger
 from telebot.types import Message
+from loguru import logger
 
 import settings
-from models.chat import Chat
 from models import Observer, Observable
+from models.chat import Chat
 
-
-logger.setLevel(logging.FATAL)
+telebot_logger.setLevel(logging.FATAL)
 
 _bot = TeleBot(settings.BOT_TOKEN, parse_mode='html')
 
 
 class Bot(Observer):
     @_bot.message_handler(commands=['start'])
+    @staticmethod
     def greet(msg: Message) -> None:
         _bot.send_message(
             msg.chat.id, f"Hello, {msg.from_user.first_name}!"
         )
 
     @_bot.message_handler(commands=['help'])
+    @staticmethod
     def send_help(msg: Message) -> None:
         _bot.send_message(
             msg.chat.id, 
@@ -29,6 +31,7 @@ class Bot(Observer):
         )
 
     @_bot.message_handler(commands=['subscribe'])
+    @staticmethod
     def subscribe(msg: Message) -> None:
         chat = Chat(msg.chat.id)
         if chat.is_subscribed:
@@ -38,6 +41,7 @@ class Bot(Observer):
             _bot.reply_to(msg, "You have subscribed!")
 
     @_bot.message_handler(commands=['unsubscribe'])
+    @staticmethod
     def unsubscribe(msg: Message) -> None:
         chat = Chat(msg.chat.id)
         if not chat.is_subscribed:
@@ -46,9 +50,8 @@ class Bot(Observer):
             chat.unsubscribe()
             _bot.reply_to(msg, "You have unsubscribed!")
 
-    @staticmethod
     def update(
-                observable: Observable, attrs: dict[str, Any], 
+                self, observable: Observable, attrs: dict[str, Any],
                 *, additional: dict[str, Any]
             ) -> None:
         message = [f"<b>Email</b>: {additional['email']}"]
@@ -78,8 +81,11 @@ class Bot(Observer):
         for chat in Chat.get_subscribed():
             _bot.send_message(chat.id, message)
 
-    def infinity_polling(self) -> None:
+    @staticmethod
+    def infinity_polling() -> None:
+        logger.info('Bot started', email='\b')
         _bot.infinity_polling()
+        logger.info('Bot stopped', email='\b')
 
 
 def main():

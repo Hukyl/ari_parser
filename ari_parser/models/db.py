@@ -1,14 +1,13 @@
 import abc
+import pickle
 import sqlite3
 import threading
-from typing import Any, Union
 from datetime import datetime
-import pickle
+from typing import Any, Union, Generator
 
-import settings
 from . import exceptions
+import settings
 from utils import Singleton, xor
-
 
 sqlite3.register_adapter(
     datetime, lambda x: x.strftime('%Y-%m-%d %H:%M').encode('ascii')
@@ -19,6 +18,9 @@ sqlite3.register_converter(
 )
 sqlite3.register_adapter(list, lambda x: pickle.dumps(x))
 sqlite3.register_converter("list", lambda x: pickle.loads(x))
+
+
+SubstitutionParameters = Union[dict[str, Any], tuple[Any, ...]]
 
 
 class AbstractDatabaseMeta(Singleton, abc.ABCMeta):
@@ -52,7 +54,7 @@ class AbstractDatabase(abc.ABC, metaclass=AbstractDatabaseMeta):
         pass
 
     def execute(
-                self, sql: str, params: Union[dict[str, Any], tuple[...]] = (),
+                self, sql: str, params: SubstitutionParameters = (),
                 *, as_default: bool = False
             ) -> Union[list[dict[str, Any]], sqlite3.Cursor]:
         """
@@ -123,7 +125,7 @@ class ChatDatabase(AbstractDatabase):
     def subscribe(self, chat_id: int) -> True:
         """
         Subscribe chat to notifications.
-        If chat does not exist in databse, it is created.
+        If chat does not exist in database, it is created.
         
         Args:
             chat_id (int): chat's id to subscribe
@@ -178,7 +180,7 @@ class ChatDatabase(AbstractDatabase):
             )[0]['is_subscribed']
         return False
 
-    def get_subscribed_chats(self) -> int:
+    def get_subscribed_chats(self) -> Generator[int, None, None]:
         """
         Get subscribed chats' ids.
 
@@ -460,6 +462,7 @@ class AccountDatabase(AbstractDatabase):
             ValueError: invalid field value
         """
         if self.check_account_exists(account_id=account_id):
+            k = v = None
             try:
                 for k, v in kwargs.items():
                     self.execute(
@@ -492,6 +495,7 @@ class AccountDatabase(AbstractDatabase):
             ValueError: invalid field value
         """
         if self.check_updates_exist(update_id):
+            k = v = None
             try:
                 for k, v in kwargs.items():
                     self.execute(
@@ -524,6 +528,7 @@ class AccountDatabase(AbstractDatabase):
             ValueError: Invalid field value
         """
         if self.check_dependent_exists(dependent_id=dependent_id):
+            k = v = None
             try:
                 for k, v in kwargs.items():
                     self.execute(

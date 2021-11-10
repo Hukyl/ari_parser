@@ -1,20 +1,20 @@
-from functools import wraps
-import re
-from typing import Iterable, TypeVar, Union, Callable
-import threading
 import collections
+import re
+import threading
 from contextlib import contextmanager
+from functools import wraps
+from typing import Iterable, TypeVar, Union, Callable, Iterator
 
 T = TypeVar('T')
 S = TypeVar('S')
 
 
-def safe_iter(iterable: Iterable[T], default_value: S = None) -> Union[T, S]:
+def safe_iter(iterable: Iterator[T], default_value: S = None) -> Union[T, S]:
     """
-    Iterator over the itetable and yield error_value infinitely
+    Iterator over the iterable and yield error_value infinitely
     
     Args:
-        iterable (Iterable[T])
+        iterable (Iterator[T])
         default_value (S, optional): will be yielded after end of iterable
     
     Yields:
@@ -48,7 +48,7 @@ class Default:
         default_stash_count (int): total 
         default_value (T): default value
         stash_count (int): current appeal times set variable will be available
-        value (T): current value
+        __value (T): current value
     """
 
     def __init__(self, default_value: T, *, stash_count: int = 5):
@@ -60,16 +60,16 @@ class Default:
     @property
     def value(self) -> T:
         if self.__value:
-            self.stash_count -= 1
-            if self.stash_count <= 0:
+            self.__stash_count -= 1
+            if self.__stash_count <= 0:
                 self.__value = None
-                self.stash_count = None
+                self.__stash_count = None
         return self.__value or self.default_value
 
     @value.setter
     def value(self, value: T):
         self.__value = value
-        self.stash_count = self.default_stash_count    
+        self.__stash_count = self.default_stash_count
 
 
 def xor(parameters: list[str]):
@@ -155,7 +155,7 @@ class FrozenDict(collections.Mapping):
 
     def items(self):
         for k, v in self._d.items():
-            yield (k, v)
+            yield k, v
 
     def to_dict(self):
         return self._d
