@@ -24,13 +24,13 @@ from utils import cycle, cleared, waited, FrozenDict, safe_iter, Default
 logger.remove(0)
 logger.add(
     sys.stderr, format=(
-        '[{time:YYYY-MM-DD HH:mm:ss}] [{level}] {extra[email]}: {message}'
+        '[{time:YYYY-MM-DD HH:mm:ss}] [{level: ^7}] {extra[email]}: {message}'
     ), level="DEBUG"
 )
 logger.add(
     path.join(settings.LOGS_PATH, '{time:YYYY-MM-DD_HH-mm-ss}.log'), 
     format=(
-        '[{time:YYYY-MM-DD HH:mm:ss}] [{level}] {extra[email]}: {message}'
+        '[{time:YYYY-MM-DD HH:mm:ss}] [{level: ^7}] {extra[email]}: {message}'
     ), level="DEBUG", rotation="00:00"
 )
 proxies = cycle([''] if not settings.PROXIES else random.sample(
@@ -51,6 +51,7 @@ class Crawler:
         self.access = threading.Event()
         self.access.set()
         self.init_driver()
+        self.driver.switch_to_tab(0)
 
     def init_driver(self):
         page = HomePage(self.driver)
@@ -67,13 +68,13 @@ class Crawler:
                 'name': settings.SESSION_ID_COOKIE_NAME, 
                 'value': self.account.session_id,
             })
-            self.logger.info("a session id cookie is used")        
+            self.logger.info("a session id cookie is used")
         try:
             page.get()
         except exceptions.AuthorizationException as e:
             self.logger.error(str(e))
             bot.send_error(self.account.email, e)
-            return
+            raise e from None
         self.driver.open_new_tab()  # reserve a tab for status checking
         self.driver.switch_to_tab(0)
         for dependent in self.account.dependents:
@@ -81,17 +82,28 @@ class Crawler:
             p = HomePage(self.driver)
             p.get()
             p.language = 'en'
-            p.click_applicants()
+            try:
+                p.click_applicants()
+            except selenium_exceptions.TimeoutException:
+                # there is no button so there are no dependents
+                msg = 'no dependents detected'
+                self.logger.error(msg)
+                bot.send_error(self.account.email, msg)
+                return
             p = ApplicantsPage(self.driver)
-            p.set_applicant(dependent.name)
+            try:
+                p.set_applicant(dependent.name)
+            except selenium_exceptions.TimeoutException:
+                msg = f'no dependent with name {dependent.name!r}'
+                self.logger.error(msg)
+                bot.send_error(self.account.email, msg)
+                continue
             dependent.updates.update(
                 status=p.applicant_status, additional={'to_notify': False}
             )
             self.logger.debug(
                 f"{dependent.name!r} status is {p.applicant_status}"
             )
-        else:
-            self.driver.switch_to_tab(0)            
 
     def update_proxy(self):
         with threading.Lock():
@@ -118,7 +130,7 @@ class Crawler:
             self.update_proxy()
             self.logger.debug(f'Set proxy to {self.driver.proxy}')
             self.logger.info('checking status')
-            self.driver.get(page.URL)
+            page.get()
             status = page.status
             if status == settings.DISABLE_APPOINTMENT_CHECKS_STATUS:
                 self.appropriate_status.clear()  # stop scheduling
@@ -217,16 +229,21 @@ class Crawler:
                 for x in applicants
                 if x.datetime_signed is not None 
             ]
-            is_valid = all(
-                meeting['datetime'] not in DateTimeRange(
-                    smeeting['datetime'] - timedelta(
-                        hours=settings.AppointmentData.HOUR_OFFICE_OFFSET
-                    ), smeeting['datetime'] + timedelta(
-                        hours=settings.AppointmentData.HOUR_OFFICE_OFFSET
-                    )
-                ) if meeting['office'] != smeeting['office'] else True
-                for smeeting in scheduled_meetings
-            )
+            is_valid = True
+            for smeeting in scheduled_meetings:
+                if meeting['office'] == smeeting['office']:
+                    continue
+                scheduled_bottom_edge = smeeting['datetime'] - timedelta(
+                    hours=settings.AppointmentData.HOUR_OFFICE_OFFSET
+                )
+                scheduled_top_edge = smeeting['datetime'] + timedelta(
+                    hours=settings.AppointmentData.HOUR_OFFICE_OFFSET
+                )
+                if meeting['datetime'] in DateTimeRange(
+                            scheduled_bottom_edge, scheduled_top_edge
+                        ):
+                    is_valid = False
+                    break
             if is_valid:
                 self.logger.debug(f'Meeting {meeting} is valid')
             else:
@@ -275,7 +292,8 @@ class Crawler:
                     ):
                 continue
             self.driver.switch_to_tab(tab_index)
-            p.get_applicant_appointment()
+            if self.driver.url == p.URL:
+                p.get_applicant_appointment()
             page = AppointmentPage(self.driver)
             page.language = 'en'
             self.driver.save_snapshot(settings.SNAPSHOTS_PATH)
@@ -323,7 +341,7 @@ class Crawler:
                     sleep(random.choice(sleep_time_range.value))
             except Exception as e:
                 self.logger.error(f'{e.__class__.__name__} occurred')
-                bot.send_error(self.account.email, e.args[0])
+                bot.send_error(self.account.email, e.__class__.__name__)
 
         threading.Thread(target=infinite_loop, daemon=True).start()
 
@@ -348,13 +366,18 @@ def main():
     print("Parser started")
     crawlers = []
     for account, data in settings.ACCOUNTS.items():
-        crawler = Crawler(account, data)
-        crawlers.append(crawler)
-        crawler.start(checks=data['checks'])
+        try:
+            crawler = Crawler(account, data)
+        except Exception:
+            pass
+        else:
+            crawlers.append(crawler)
+            crawler.start(checks=data['checks'])
     bot.infinity_polling()
     print("Shutting down the parser")
     # Kill all instances of driver
-    subprocess.call(
-        settings.ChromeData.TASK_KILL_COMMAND.split(), 
-        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
-    )
+    if crawlers:
+        subprocess.call(
+            settings.ChromeData.TASK_KILL_COMMAND.split(), 
+            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
+        )

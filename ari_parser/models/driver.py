@@ -10,7 +10,7 @@ import settings
 from utils.url import Url
 from .account import Account
 from .page import LoginPage
-from .exceptions import InvalidCredentialsException
+from .exceptions import InvalidCredentialsException, AuthorizationException
 
 
 class Driver(webdriver.Chrome):
@@ -72,39 +72,41 @@ class Driver(webdriver.Chrome):
         """
         return self.url == LoginPage.URL
 
-    def log_in(self) -> bool:
+    def log_in(self) -> True:
         """
         Log in with `self.account`
         
         Returns:
-            None
+            True
         
         Raises:
-            InvalidCredentialsException: Description
+            AuthorizationException: unable to log in
+            InvalidCredentialsException
         """
         # TODO: Relocate setting the cookies to outer scope
         # TODO: Remove account from driver 
         page = LoginPage(self)
-        self.get(page.URL)
+        self.raw_get(page.URL)
         page.email = self.account.email
         page.password = self.account.password
         page.submit()
         if page.is_invalid_credentials:
             raise InvalidCredentialsException("invalid credentials")
-        elif (is_successful := not self.is_redirected_to_login):
-            self.account.update(auth_token=self.get_cookie(
-                settings.AUTH_TOKEN_COOKIE_NAME
-            )['value'])
-            self.account.update(session_id=self.get_cookie(
-                settings.SESSION_ID_COOKIE_NAME
-            )['value'])
-        return is_successful
+        elif self.is_redirected_to_login:
+            raise AuthorizationException('unable to log in')
+        self.account.update(auth_token=self.get_cookie(
+            settings.AUTH_TOKEN_COOKIE_NAME
+        )['value'])
+        self.account.update(session_id=self.get_cookie(
+            settings.SESSION_ID_COOKIE_NAME
+        )['value'])
+        return True
 
     @property
     def url(self) -> Url:
         return Url(self.current_url)
 
-    def get(self, url: Union[Url, str]) -> True:
+    def get(self, url: Union[Url, str]) -> bool:
         """
         Get url safely. 
         If redirected to login page, relogin and get the needed url again.
@@ -115,16 +117,17 @@ class Driver(webdriver.Chrome):
         Returns:
             True
         """
+        is_successful = True
         self.raw_get(url)
         if self.url != url:
             self.logger.info('relogging in')
-            self.account.auth_token = None
+            self.account.update(auth_token=None)
             self.delete_cookie(settings.AUTH_TOKEN_COOKIE_NAME)
             is_successful = self.log_in()
             if not is_successful:
                 self.logger.error('unable to log in')
             self.raw_get(url)
-        return True
+        return is_successful
 
     def raw_get(self, url: Union[Url, str]) -> None:
         """
