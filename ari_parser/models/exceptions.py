@@ -28,3 +28,15 @@ class AuthorizationException(Exception):
 
 class InvalidCredentialsException(AuthorizationException):
     pass
+
+
+class CrawlerException(Exception):
+    pass
+
+
+class NoAppointmentsException(CrawlerException):
+    pass
+
+
+class NoStatusException(CrawlerException):
+    pass

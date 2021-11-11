@@ -15,23 +15,23 @@ _bot = TeleBot(settings.BOT_TOKEN, parse_mode='html')
 
 
 class Bot(Observer):
-    @_bot.message_handler(commands=['start'])
     @staticmethod
+    @_bot.message_handler(commands=['start'])
     def greet(msg: Message) -> None:
         _bot.send_message(
             msg.chat.id, f"Hello, {msg.from_user.first_name}!"
         )
 
-    @_bot.message_handler(commands=['help'])
     @staticmethod
+    @_bot.message_handler(commands=['help'])
     def send_help(msg: Message) -> None:
         _bot.send_message(
             msg.chat.id, 
             "/subscribe - subscribe to updates\n/unsubscribe - unsubscribe"
         )
 
-    @_bot.message_handler(commands=['subscribe'])
     @staticmethod
+    @_bot.message_handler(commands=['subscribe'])
     def subscribe(msg: Message) -> None:
         chat = Chat(msg.chat.id)
         if chat.is_subscribed:
@@ -40,8 +40,8 @@ class Bot(Observer):
             chat.subscribe()
             _bot.reply_to(msg, "You have subscribed!")
 
-    @_bot.message_handler(commands=['unsubscribe'])
     @staticmethod
+    @_bot.message_handler(commands=['unsubscribe'])
     def unsubscribe(msg: Message) -> None:
         chat = Chat(msg.chat.id)
         if not chat.is_subscribed:

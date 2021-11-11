@@ -158,7 +158,12 @@ class Crawler:
         with waited(self.appropriate_status), cleared(self.access):
             self.driver.switch_to_tab(0)
             page.get()
-            page.click_calendar()
+            try:
+                page.click_calendar()
+            except selenium_exceptions.TimeoutException:
+                # inappropriate status for checking appointments
+                self.logger.error('no calendar button')
+                raise exceptions.NoAppointmentsException from None
             iterator = self._check_new_appointments()
             if not iterator:
                 return
@@ -166,7 +171,7 @@ class Crawler:
                 settings.RequestTimeout.BURST_APPOINTMENT
             )
             self.driver.save_snapshot(settings.SNAPSHOTS_PATH)
-            self.driver.save_screenshot(settings.SCREENSHOTS_PATH)                
+            self.driver.save_screenshot(settings.SCREENSHOTS_PATH)
             is_ok = self._schedule_main(iterator)
             if not is_ok:
                 return
