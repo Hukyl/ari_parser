@@ -53,6 +53,7 @@ class Crawler:
         self.driver.switch_to_tab(0)
 
     def init_driver(self):
+        self.update_proxy()
         page = HomePage(self.driver)
         page.raw_get()
         page.language = 'en'
@@ -106,7 +107,8 @@ class Crawler:
 
     def update_proxy(self):
         with threading.Lock():
-            self.driver.set_proxy(next(proxies))   
+            self.driver.set_proxy(next(proxies))
+        self.logger.debug(f'Set proxy to {self.driver.proxy}')
 
     @staticmethod
     def _create_account(account_data: FrozenDict, data: dict):
@@ -127,7 +129,6 @@ class Crawler:
         with cleared(self.access):
             self.driver.switch_to_tab(-1)
             self.update_proxy()
-            self.logger.debug(f'Set proxy to {self.driver.proxy}')
             self.logger.info('checking status')
             page.get()
             status = page.status
