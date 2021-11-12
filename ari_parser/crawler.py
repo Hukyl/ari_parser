@@ -340,13 +340,14 @@ class Crawler:
                 self, func: Callable[[], bool], sleep_time_range: Default
             ):
         def infinite_loop():
-            try:
-                while True:
+            while True:
+                try:
                     func()
                     sleep(random.choice(sleep_time_range.value))
-            except Exception as e:
-                self.logger.error(f'{e.__class__.__name__} occurred')
-                bot.send_error(self.account.email, e.__class__.__name__)
+                except Exception as e:
+                    self.logger.error(f'{e.__class__.__name__} occurred')
+                    bot.send_error(self.account.email, e.__class__.__name__)
+                    sleep(random.choice(settings.RequestTimeout.ERROR.value))
 
         threading.Thread(target=infinite_loop, daemon=True).start()
 
