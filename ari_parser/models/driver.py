@@ -20,14 +20,6 @@ class Driver(webdriver.Chrome):
             self, account: Account,
             *, headless: Optional[bool] = settings.ChromeData.HEADLESS
             ):
-        """
-        Create a Chrome webdriver
-
-        :keyword arguments:
-            headless:bool=True - to set Chrome to be headless
-        :return:
-            driver:selenium.webdriver.Chrome
-        """
         chrome_options = webdriver.ChromeOptions()
         chrome_options.add_experimental_option(
             "excludeSwitches", ["enable-automation"]

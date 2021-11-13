@@ -19,6 +19,7 @@ from models.account import Account, Dependent
 from models.driver import Driver
 from models.page import HomePage, AppointmentPage, ApplicantsPage
 from utils import cycle, cleared, waited, FrozenDict, safe_iter, Default
+from utils.url import Url
 
 logger.remove(0)
 logger.add(
@@ -42,6 +43,7 @@ class Crawler:
     def __init__(self, account_data: FrozenDict, data: dict):
         self.account = self._create_account(account_data, data)
         self.driver = Driver(self.account)
+        self.driver.set_page_load_timeout(settings.PAGE_LOAD_TIMEOUT)
         self.account.updates.add_observer(bot)
         for dependent in self.account.dependents:
             dependent.updates.add_observer(bot)
@@ -70,7 +72,7 @@ class Crawler:
             })
             self.logger.info("a session id cookie is used")
         try:
-            page.get()
+            self.safe_get(page.URL)
         except exceptions.AuthorizationException as e:
             self.logger.error(str(e))
             bot.send_error(self.account.email, str(e))
@@ -80,7 +82,7 @@ class Crawler:
         for dependent in self.account.dependents:
             self.driver.open_new_tab()
             p = HomePage(self.driver)
-            p.get()
+            self.safe_get(p.URL)
             p.language = 'en'
             try:
                 p.click_applicants()
@@ -109,6 +111,24 @@ class Crawler:
         with threading.Lock():
             self.driver.set_proxy(next(proxies))
         self.logger.debug(f'Set proxy to {self.driver.proxy}')
+<<<<<<< HEAD
+=======
+
+    def safe_get(self, url: Union[str, Url]) -> True:
+        try:
+            return self.driver.get(url)
+        except Exception:
+            pass
+        for _ in range(len(settings.PROXIES)):
+            self.update_proxy()
+            try:
+                return self.driver.get(url)
+            except Exception:
+                pass
+        raise exceptions.ProxyException(
+            'all proxies loading time have exceeded timeout'
+        )
+>>>>>>> dev
 
     @staticmethod
     def _create_account(account_data: FrozenDict, data: dict):
@@ -130,7 +150,7 @@ class Crawler:
             self.driver.switch_to_tab(-1)
             self.update_proxy()
             self.logger.info('checking status')
-            page.get()
+            self.safe_get(page.URL)
             status = page.status
             if status == settings.DISABLE_APPOINTMENT_CHECKS_STATUS:
                 self.appropriate_status.clear()  # stop scheduling
@@ -150,6 +170,7 @@ class Crawler:
                     }
                 )
                 self.driver.save_snapshot(settings.SNAPSHOTS_PATH)
+                self.driver.save_screenshot(settings.SCREENSHOTS_PATH)
             else:
                 self.logger.info("status has not changed")
             return has_changed
@@ -158,7 +179,7 @@ class Crawler:
         page = HomePage(self.driver)
         with waited(self.appropriate_status), cleared(self.access):
             self.driver.switch_to_tab(0)
-            page.get()
+            self.safe_get(page.URL)
             try:
                 page.click_calendar()
             except selenium_exceptions.TimeoutException:
@@ -340,13 +361,14 @@ class Crawler:
                 self, func: Callable[[], bool], sleep_time_range: Default
             ):
         def infinite_loop():
-            try:
-                while True:
+            while True:
+                try:
                     func()
                     sleep(random.choice(sleep_time_range.value))
-            except Exception as e:
-                self.logger.error(f'{e.__class__.__name__} occurred')
-                bot.send_error(self.account.email, e.__class__.__name__)
+                except Exception as e:
+                    self.logger.error(f'{e.__class__.__name__} occurred')
+                    bot.send_error(self.account.email, e.__class__.__name__)
+                    sleep(random.choice(settings.RequestTimeout.ERROR.value))
 
         threading.Thread(target=infinite_loop, daemon=True).start()
 
