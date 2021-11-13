@@ -22,7 +22,11 @@ class DependentDoesNotExistException(DatabaseException):
     pass
 
 
-class AuthorizationException(Exception):
+class CrawlerException(Exception):
+    pass
+
+
+class AuthorizationException(CrawlerException):
     pass
 
 
@@ -30,7 +34,7 @@ class InvalidCredentialsException(AuthorizationException):
     pass
 
 
-class CrawlerException(Exception):
+class ProxyException(CrawlerException):
     pass
 
 
