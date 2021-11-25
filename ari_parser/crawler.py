@@ -427,8 +427,11 @@ def main():
     for account, data in settings.ACCOUNTS.items():
         try:
             crawler = Crawler(account, data)
-        except Exception:
-            logger.error(f'Crawler {account["email"]} cannot be started')
+        except Exception as e:
+            logger.error(
+                f'Crawler {account["email"]} raised '
+                f'{e.__class__.__name__}: {str(e)}'
+            )
         else:
             crawlers.append(crawler)
             crawler.start(checks=data['checks'])
