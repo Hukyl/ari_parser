@@ -83,9 +83,9 @@ class Bot(Observer):
 
     @staticmethod
     def infinity_polling() -> None:
-        logger.info('Bot started', email='\b')
+        logger.info('Bot started')
         _bot.infinity_polling()
-        logger.info('Bot stopped', email='\b')
+        logger.info('Bot stopped')
 
 
 def main():
