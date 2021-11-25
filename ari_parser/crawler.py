@@ -36,11 +36,13 @@ logger.add(
 proxies = cycle([''] if not settings.PROXIES else random.sample(
     settings.PROXIES, len(settings.PROXIES)
 ))
+logger.configure(extra={'email': '\b'})
 bot = Bot()
 
 
 class Crawler:
     def __init__(self, account_data: FrozenDict, data: dict):
+        breakpoint()
         self.account = self._create_account(account_data, data)
         self.driver = Driver(self.account)
         self.driver.set_page_load_timeout(settings.PAGE_LOAD_TIMEOUT)
@@ -57,7 +59,7 @@ class Crawler:
     def init_driver(self):
         self.update_proxy()
         page = HomePage(self.driver)
-        page.raw_get()
+        self.raw_get(page.URL)
         page.language = 'en'
         if self.account.auth_token:
             self.driver.add_cookie({
@@ -72,17 +74,17 @@ class Crawler:
             })
             self.logger.info("a session id cookie is used")
         try:
-            self.safe_get(page.URL)
+            self.get(page.URL)
         except exceptions.AuthorizationException as e:
             self.logger.error(str(e))
             bot.send_error(self.account.email, str(e))
-            raise e from None
+            raise
         self.driver.open_new_tab()  # reserve a tab for status checking
         self.driver.switch_to_tab(0)
         for dependent in self.account.dependents:
             self.driver.open_new_tab()
             p = HomePage(self.driver)
-            self.safe_get(p.URL)
+            self.get(p.URL)
             p.language = 'en'
             try:
                 p.click_applicants()
@@ -111,24 +113,55 @@ class Crawler:
         with threading.Lock():
             self.driver.set_proxy(next(proxies))
         self.logger.debug(f'Set proxy to {self.driver.proxy}')
-<<<<<<< HEAD
-=======
 
-    def safe_get(self, url: Union[str, Url]) -> True:
+    def __proxy_safe(self, func: Callable, *, args=None, kwargs=None) -> True:
+        """
+        Execute func with args and kwargs safely by using proxy.
+        If no proxies produced successful result, ProxyException is raised.
+        All requests are tested via an access to an element, that is present 
+            only on `models.page.BasePage` child page.
+
+        Args:
+            func (Callable): function to be called
+            args (None, optional): args to be passed to function
+            kwargs (None, optional): kwargs to be passed to function
+        
+        Returns:
+            True
+        
+        Raises:
+            exceptions.ProxyException: if no proxies succeeded
+        """
+        args = args or tuple()
+        kwargs = kwargs or {}
         try:
-            return self.driver.get(url)
+            result = func(*args, **kwargs)
+            if self.test_response():
+                return result
         except Exception:
             pass
         for _ in range(len(settings.PROXIES)):
             self.update_proxy()
             try:
-                return self.driver.get(url)
+                result = func(*args, **kwargs)
+                if self.test_response():
+                    return result
             except Exception:
                 pass
-        raise exceptions.ProxyException(
-            'all proxies loading time have exceeded timeout'
-        )
->>>>>>> dev
+        raise exceptions.ProxyException('unable to get page via all proxies')
+
+    def test_response(self) -> bool:
+        page = HomePage(self.driver)
+        try:
+            return bool(page.language)
+        except selenium_exceptions.TimeoutException:
+            return False
+
+    def get(self, url: Union[str, Url]) -> True:
+        return self.__proxy_safe(self.driver.get, args=(url, ))
+
+    def raw_get(self, url: Union[str, Url]) -> True:
+        return self.__proxy_safe(self.driver.raw_get, args=(url, ))
 
     @staticmethod
     def _create_account(account_data: FrozenDict, data: dict):
@@ -150,7 +183,7 @@ class Crawler:
             self.driver.switch_to_tab(-1)
             self.update_proxy()
             self.logger.info('checking status')
-            self.safe_get(page.URL)
+            self.get(page.URL)
             status = page.status
             if status == settings.DISABLE_APPOINTMENT_CHECKS_STATUS:
                 self.appropriate_status.clear()  # stop scheduling
@@ -179,7 +212,7 @@ class Crawler:
         page = HomePage(self.driver)
         with waited(self.appropriate_status), cleared(self.access):
             self.driver.switch_to_tab(0)
-            self.safe_get(page.URL)
+            self.get(page.URL)
             try:
                 page.click_calendar()
             except selenium_exceptions.TimeoutException:
@@ -390,18 +423,21 @@ class Crawler:
 
 
 def main():
-    logger.info("Parser started", email='\b')
+    logger.info("Parser started")
     crawlers = []
     for account, data in settings.ACCOUNTS.items():
         try:
             crawler = Crawler(account, data)
         except Exception:
-            pass
+            logger.error(f'Crawler {account["email"]} cannot be started')
         else:
             crawlers.append(crawler)
             crawler.start(checks=data['checks'])
+    if not crawlers:
+        logger.error('All crawlers are dead')
+        return
     bot.infinity_polling()
-    logger.info("Shutting down the parser", email="\b")
+    logger.info("Shutting down the parser")
     # Kill all instances of driver
     if crawlers:
         subprocess.call(
