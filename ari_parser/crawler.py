@@ -42,7 +42,6 @@ bot = Bot()
 
 class Crawler:
     def __init__(self, account_data: FrozenDict, data: dict):
-        breakpoint()
         self.account = self._create_account(account_data, data)
         self.driver = Driver(self.account)
         self.driver.set_page_load_timeout(settings.PAGE_LOAD_TIMEOUT)
