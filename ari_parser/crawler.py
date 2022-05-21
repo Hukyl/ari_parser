@@ -1,5 +1,6 @@
 import random
 import subprocess
+from functools import partial
 import sys
 import threading
 from datetime import datetime, timedelta
@@ -11,6 +12,7 @@ from typing import Callable, Iterable, Union
 from datetimerange import DateTimeRange
 from loguru import logger
 from selenium.common import exceptions as selenium_exceptions
+from requests.exceptions import ProxyError
 
 import settings
 from bot import Bot
@@ -25,13 +27,13 @@ logger.remove(0)
 logger.add(
     sys.stderr, format=(
         '[{time:YYYY-MM-DD HH:mm:ss}] [{level: ^7}] {extra[email]}: {message}'
-    ), level="DEBUG"
+    ), level=settings.LOG_LEVEL
 )
 logger.add(
     path.join(settings.LOGS_PATH, '{time:YYYY-MM-DD_HH-mm-ss}.log'), 
     format=(
         '[{time:YYYY-MM-DD HH:mm:ss}] [{level: ^7}] {extra[email]}: {message}'
-    ), level="DEBUG", rotation="00:00"
+    ), level=settings.LOG_LEVEL, rotation="00:00"
 )
 proxies = cycle([''] if not settings.PROXIES else random.sample(
     settings.PROXIES, len(settings.PROXIES)
@@ -137,7 +139,7 @@ class Crawler:
             result = func(*args, **kwargs)
             if self.test_response():
                 return result
-        except Exception:
+        except ProxyError:
             pass
         for _ in range(len(settings.PROXIES)):
             self.update_proxy()
@@ -145,7 +147,7 @@ class Crawler:
                 result = func(*args, **kwargs)
                 if self.test_response():
                     return result
-            except Exception:
+            except ProxyError:
                 pass
         raise exceptions.ProxyException('unable to get page via all proxies')
 
@@ -175,6 +177,7 @@ class Crawler:
                 account.add_dependent(name)
         return account
 
+    @logger.catch
     def update_status(self):
         page = HomePage(self.driver)
         has_changed = False
@@ -207,6 +210,7 @@ class Crawler:
                 self.logger.info("status has not changed")
             return has_changed
 
+    @logger.catch
     def schedule_appointments(self):
         page = HomePage(self.driver)
         with waited(self.appropriate_status), cleared(self.access):
@@ -228,7 +232,7 @@ class Crawler:
             self.driver.save_screenshot(settings.SCREENSHOTS_PATH)
             is_ok = self._schedule_main(iterator)
             if not is_ok:
-                return
+                return True
             return self._schedule_dependents(iterator)
 
     def get_valid_meeting(self, meetings_iterator: 'safe_iter'):
@@ -341,15 +345,17 @@ class Crawler:
 
     def _schedule_dependents(self, meetings_iterator: 'safe_iter'):
         p = ApplicantsPage(self.driver)
+        # breakpoint()
         for tab_index, dependent in enumerate(
                     sorted(self.account.dependents, key=lambda x: x.id), 
                     start=1
-                ):
+                ): 
             if dependent.is_signed or dependent.updates.status == (
                         settings.DISABLE_APPOINTMENT_CHECKS_STATUS
                     ):
                 continue
             self.driver.switch_to_tab(tab_index)
+            sleep(0.25)
             if self.driver.url == p.URL:
                 p.get_applicant_appointment()
             page = AppointmentPage(self.driver)
@@ -394,13 +400,13 @@ class Crawler:
             ):
         def infinite_loop():
             while True:
-                try:
-                    func()
-                    sleep(random.choice(sleep_time_range.value))
-                except Exception as e:
-                    self.logger.error(f'{e.__class__.__name__} occurred')
-                    bot.send_error(self.account.email, e.__class__.__name__)
+                result = func()
+                if result is None:
+                    # None is returned by @logger.catch then an error occurred
+                    bot.send_error(self.account.email, 'error occurred')
                     sleep(random.choice(settings.RequestTimeout.ERROR.value))
+                else:
+                    sleep(random.choice(sleep_time_range.value))                
 
         threading.Thread(target=infinite_loop, daemon=True).start()
 
@@ -434,10 +440,12 @@ def main():
             )
         else:
             crawlers.append(crawler)
-            crawler.start(checks=data['checks'])
+            crawler.start = partial(crawler.start, checks=data['checks'])
     if not crawlers:
         logger.error('All crawlers are dead')
         return
+    for crawler in crawlers:
+        crawler.start()
     bot.infinity_polling()
     logger.info("Shutting down the parser")
     # Kill all instances of driver

@@ -32,8 +32,6 @@ class Driver(webdriver.Chrome):
         chrome_options.add_experimental_option(
             "excludeSwitches", ["enable-logging"]
         )
-        chrome_options.add_argument("--remote-debugging-port=9222")
-        service_log_path = os.devnull if sys.platform == 'linux' else 'NUL'
         seleniumwire_options = {'proxy': {'no_proxy': self.NO_PROXY_IP}}
         if headless:
             chrome_options.add_argument("--disable-extensions")
@@ -46,10 +44,15 @@ class Driver(webdriver.Chrome):
                 chrome_options.add_argument('--disable-dev-shm-usage')
         self.account = account
         self.logger = logger.bind(email=self.account.email)
+        remote_debugging_port = 9222 + self.account.id  
+        # for every browser unique port
+        chrome_options.add_argument(
+            f"--remote-debugging-port={remote_debugging_port}"
+        )
         super().__init__(
             executable_path=settings.ChromeData.PATH, 
             options=chrome_options,
-            service_log_path=service_log_path,
+            port=self.account.id,
             seleniumwire_options=seleniumwire_options
         )
         self.tabs = self.window_handles[:]

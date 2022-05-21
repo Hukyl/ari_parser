@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "ari_parser"
+version = "1.0.0"
+description = ""
+authors = ["Hukyl <a.shalaev7125@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "3.9"
+selenium = "3.141.0"
+pyTelegramBotAPI = "4.1.0"
+selenium-wire = "4.5.6"
+DateTimeRange = "1.2.0"
+loguru = "0.5.3"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

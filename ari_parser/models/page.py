@@ -30,7 +30,7 @@ class BasePage(ABC):
         return webelement
 
     def get_webelement(self, locator: tuple[str, str], *, start_element=None):
-        return WebDriverWait(start_element or self.driver, 3).until(
+        return WebDriverWait(start_element or self.driver, 0.5).until(
             EC.presence_of_element_located(locator)
         )
 

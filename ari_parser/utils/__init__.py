@@ -22,7 +22,10 @@ def safe_iter(iterable: Iterator[T], default_value: S = None) -> Union[T, S]:
     """
     try:
         while True:
-            yield next(iterable)
+            try:
+                yield next(iterable)
+            except Exception:
+                pass
     except StopIteration:
         while True:
             yield default_value
